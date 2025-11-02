@@ -145,7 +145,9 @@ public class GoalService {
         
         // Actualizar objetivos de categoría
         goal.getCategoryTargets().clear();
+        goalRepository.saveAndFlush(goal); // Forzar flush para eliminar los registros de la BD
         
+        // Ahora agregamos los nuevos targets
         for (CategoryTargetRequest targetRequest : request.categoryTargets()) {
             Category category = categoryMap.get(targetRequest.categoryId());
             
@@ -241,9 +243,7 @@ public class GoalService {
                 goal.getName(),
                 goal.getPeriodStart(),
                 goal.getPeriodEnd(),
-                goal.getTotalRevenueGoal(),
                 goal.getIsLocked(),
-                goal.isPeriodActive(),
                 goal.isPeriodFinished(),
                 targetResponses
         );
