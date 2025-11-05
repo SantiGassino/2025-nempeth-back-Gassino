@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+           http://www.liquibase.org/xml/ns/dbchangelog
+           http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <changeSet id="016-remove-fk-goal-category-target-category" author="korven">
+        <dropForeignKeyConstraint
+                baseTableName="goal_category_target"
+                constraintName="fk_gct_category"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+           http://www.liquibase.org/xml/ns/dbchangelog
+           http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <changeSet id="040-exts" author="korven">
+        <preConditions onFail="MARK_RAN">
+            <dbms type="postgresql"/>
+        </preConditions>
+        <sql>CREATE EXTENSION IF NOT EXISTS pgcrypto;</sql>
+        <sql>CREATE EXTENSION IF NOT EXISTS citext;</sql>
+        <sql>CREATE EXTENSION IF NOT EXISTS btree_gist;</sql>
+    </changeSet>
+
+    <changeSet id="014-goal" author="korven">
+        <createTable tableName="goal">
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="business_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_goal_business"
+                             referencedTableName="business" referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+
+            <column name="name" type="text">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="period_start" type="date">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="period_end" type="date">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="total_revenue_goal" type="numeric(12,2)"/>
+
+            <column name="is_locked" type="boolean" defaultValue="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE goal ADD COLUMN period_daterange daterange GENERATED ALWAYS AS (daterange(period_start, period_end, '[]')) STORED;
+        </sql>
+    </changeSet>
+
+    <changeSet id="015-goal-category-target" author="korven">
+        <createTable tableName="goal_category_target">
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="goal_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_gct_goal"
+                             referencedTableName="goal" referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+
+            <column name="category_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_gct_category"
+                             referencedTableName="category" referencedColumnNames="id"/>
+            </column>
+
+            <column name="category_name" type="text">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="revenue_target" type="numeric(12,2)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="goal_category_target"
+                             columnNames="goal_id,category_id"
+                             constraintName="uk_gct_goal_category"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -5,8 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface SaleRepository extends JpaRepository<Sale, UUID> {
@@ -83,4 +86,19 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
     List<Object[]> findMonthlyTotalProfit(@Param("businessId") UUID businessId, 
                                          @Param("startDate") OffsetDateTime startDate, 
                                          @Param("endDate") OffsetDateTime endDate);
+    
+    @Query(value = """
+        SELECT COALESCE(SUM(si.line_total), 0)
+        FROM sale s 
+        JOIN sale_item si ON si.sale_id = s.id
+        WHERE s.business_id = :businessId 
+        AND si.category_name = :categoryName
+        AND s.occurred_at::date BETWEEN :startDate AND :endDate
+        """, nativeQuery = true)
+    Optional<BigDecimal> calculateRevenueByCategoryAndDateRange(
+        @Param("businessId") UUID businessId,
+        @Param("categoryName") String categoryName,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }

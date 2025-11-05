@@ -10,6 +10,7 @@ import com.nempeth.korven.persistence.entity.User;
 import com.nempeth.korven.persistence.repository.BusinessMembershipRepository;
 import com.nempeth.korven.persistence.repository.BusinessRepository;
 import com.nempeth.korven.persistence.repository.CategoryRepository;
+import com.nempeth.korven.persistence.repository.GoalCategoryTargetRepository;
 import com.nempeth.korven.persistence.repository.UserRepository;
 import com.nempeth.korven.rest.dto.CategoryResponse;
 import com.nempeth.korven.rest.dto.CreateCategoryRequest;
@@ -29,6 +30,7 @@ public class CategoryService {
     private final BusinessRepository businessRepository;
     private final BusinessMembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final GoalCategoryTargetRepository goalCategoryTargetRepository;
 
     @Transactional(readOnly = true)
     public List<CategoryResponse> getCategoriesByBusiness(String userEmail, UUID businessId) {
@@ -106,7 +108,8 @@ public class CategoryService {
         }
         
         // Check if the new name already exists for another category in the same business
-        if (request.name() != null && !request.name().equals(category.getName())) {
+        String originalName = category.getName();
+        if (request.name() != null && !request.name().equals(originalName)) {
             if (categoryRepository.existsByBusinessIdAndNameIgnoreCase(businessId, request.name())) {
                 throw new IllegalArgumentException("Ya existe una categoría con ese nombre");
             }
@@ -123,6 +126,11 @@ public class CategoryService {
         }
         
         category = categoryRepository.save(category);
+        
+        // Update category name in goal_category_target if name changed
+        if (!originalName.equals(category.getName())) {
+            goalCategoryTargetRepository.updateCategoryNameByCategoryId(categoryId, category.getName());
+        }
         
         return mapToResponse(category);
     }
