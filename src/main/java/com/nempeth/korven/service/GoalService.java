@@ -107,7 +107,7 @@ public class GoalService {
             
             GoalCategoryTarget target = GoalCategoryTarget.builder()
                     .goal(goal)
-                    .category(category)
+                    .categoryId(category.getId())
                     .categoryName(category.getName())
                     .revenueTarget(targetRequest.revenueTarget())
                     .build();
@@ -153,7 +153,7 @@ public class GoalService {
             
             GoalCategoryTarget target = GoalCategoryTarget.builder()
                     .goal(goal)
-                    .category(category)
+                    .categoryId(category.getId())
                     .categoryName(category.getName())
                     .revenueTarget(targetRequest.revenueTarget())
                     .build();
@@ -269,7 +269,7 @@ public class GoalService {
         
         return new GoalCategoryTargetResponse(
                 target.getId(),
-                target.getCategory().getId(),
+                target.getCategoryId(),
                 target.getCategoryName(),
                 target.getRevenueTarget(),
                 actualRevenue,

@@ -25,10 +25,9 @@ public class GoalCategoryTarget {
                 foreignKey = @ForeignKey(name = "fk_gct_goal"))
     private Goal goal;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "category_id", nullable = false,
-                foreignKey = @ForeignKey(name = "fk_gct_category"))
-    private Category category;
+    // No FK constraint - allows category deletion while preserving historical data
+    @Column(name = "category_id", nullable = false)
+    private UUID categoryId;
 
     @Column(name = "category_name", nullable = false, columnDefinition = "text")
     private String categoryName;
@@ -39,8 +38,5 @@ public class GoalCategoryTarget {
     @PrePersist
     public void prePersist() {
         if (id == null) id = UUID.randomUUID();
-        if (categoryName == null && category != null) {
-            categoryName = category.getName();
-        }
     }
 }
