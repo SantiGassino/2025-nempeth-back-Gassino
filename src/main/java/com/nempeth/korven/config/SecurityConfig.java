@@ -47,6 +47,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/auth/register", "/auth/register/owner", "/auth/register/employee", "/auth/login", "/auth/password/forgot", "/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/auth/password/validate").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/external/products").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
