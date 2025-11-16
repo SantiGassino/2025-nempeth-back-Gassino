@@ -6,7 +6,11 @@ import com.nempeth.korven.persistence.repository.BusinessMembershipRepository;
 import com.nempeth.korven.persistence.repository.BusinessRepository;
 import com.nempeth.korven.persistence.repository.SaleRepository;
 import com.nempeth.korven.persistence.repository.UserRepository;
+import com.nempeth.korven.persistence.entity.Business;
+import com.nempeth.korven.persistence.entity.Sale;
+import com.nempeth.korven.rest.dto.BusinessRankingResponse;
 import com.nempeth.korven.rest.dto.EmployeeRankingResponse;
+import com.nempeth.korven.utils.ScoreCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -19,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -125,6 +130,134 @@ public class RankingService {
     }
 
     /**
+     * Get business rankings based on composite score
+     * Businesses are ranked by their performance score which considers:
+     * - Total Revenue (30%)
+     * - Average Ticket (25%)
+     * - Consistency (20%)
+     * - Transaction Volume (15%)
+     * - Growth (10%)
+     * 
+     * @param userEmail Email of the requesting user
+     * @return List of business rankings sorted by composite score (descending)
+     */
+    @Transactional(readOnly = true)
+    public List<BusinessRankingResponse> getBusinessRankings(String userEmail) {
+        // Verify user exists
+        User requestingUser = userRepository.findByEmailIgnoreCase(userEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
+
+        // Get all businesses the user has access to
+        List<BusinessMembership> userMemberships = businessMembershipRepository
+                .findByUserId(requestingUser.getId());
+
+        if (userMemberships.isEmpty()) {
+            return List.of();
+        }
+
+        // Get IDs of businesses user has access to
+        List<UUID> accessibleBusinessIds = userMemberships.stream()
+                .map(m -> m.getBusiness().getId())
+                .collect(Collectors.toList());
+
+        // Get all businesses
+        List<Business> allBusinesses = businessRepository.findAll();
+
+        // Calculate current and previous month date ranges
+        YearMonth currentMonth = YearMonth.now();
+        YearMonth previousMonth = currentMonth.minusMonths(1);
+
+        OffsetDateTime currentStart = currentMonth.atDay(1).atStartOfDay().atOffset(OffsetDateTime.now().getOffset());
+        OffsetDateTime currentEnd = currentMonth.atEndOfMonth().atTime(23, 59, 59).atOffset(OffsetDateTime.now().getOffset());
+
+        OffsetDateTime previousStart = previousMonth.atDay(1).atStartOfDay().atOffset(OffsetDateTime.now().getOffset());
+        OffsetDateTime previousEnd = previousMonth.atEndOfMonth().atTime(23, 59, 59).atOffset(OffsetDateTime.now().getOffset());
+
+        // First pass: Calculate metrics for all businesses to find dynamic maximums
+        double maxRevenue = 0.0;
+        double maxAvgTicket = 0.0;
+        double maxTransactionCount = 0.0;
+
+        List<BusinessMetrics> businessMetricsList = new ArrayList<>();
+
+        for (Business business : allBusinesses) {
+            List<Sale> currentMonthSales = saleRepository
+                    .findByBusinessIdAndOccurredAtBetweenOrderByOccurredAtDesc(
+                            business.getId(),
+                            currentStart,
+                            currentEnd
+                    );
+
+            List<Sale> previousMonthSales = saleRepository
+                    .findByBusinessIdAndOccurredAtBetweenOrderByOccurredAtDesc(
+                            business.getId(),
+                            previousStart,
+                            previousEnd
+                    );
+
+            // Calculate metrics to find maximums
+            BigDecimal totalRevenue = ScoreCalculator.calculateTotalRevenue(currentMonthSales);
+            long transactionCount = currentMonthSales.size();
+            BigDecimal avgTicket = ScoreCalculator.calculateAverageTicket(totalRevenue, transactionCount);
+
+            // Track maximums across all businesses
+            maxRevenue = Math.max(maxRevenue, totalRevenue.doubleValue());
+            maxAvgTicket = Math.max(maxAvgTicket, avgTicket.doubleValue());
+            maxTransactionCount = Math.max(maxTransactionCount, transactionCount);
+
+            businessMetricsList.add(new BusinessMetrics(
+                    business,
+                    currentMonthSales,
+                    previousMonthSales
+            ));
+        }
+
+        // Second pass: Calculate composite scores using dynamic maximums
+        List<BusinessRankingData> rankingData = new ArrayList<>();
+
+        for (BusinessMetrics metrics : businessMetricsList) {
+            BigDecimal compositeScore = ScoreCalculator.calculateCompositeScore(
+                    metrics.currentMonthSales(),
+                    metrics.previousMonthSales(),
+                    maxRevenue,
+                    maxAvgTicket,
+                    maxTransactionCount
+            );
+
+            rankingData.add(new BusinessRankingData(
+                    metrics.business().getId(),
+                    metrics.business().getName(),
+                    compositeScore
+            ));
+        }
+
+        // Sort by composite score (descending)
+        rankingData.sort(Comparator
+                .comparing(BusinessRankingData::compositeScore, Comparator.reverseOrder())
+        );
+
+        // Build response with positions
+        List<BusinessRankingResponse> rankings = new ArrayList<>();
+        int position = 1;
+
+        for (BusinessRankingData data : rankingData) {
+            boolean isOwnBusiness = accessibleBusinessIds.contains(data.businessId());
+
+            rankings.add(new BusinessRankingResponse(
+                    data.businessId(),
+                    data.businessName(),
+                    data.compositeScore(),
+                    position,
+                    isOwnBusiness
+            ));
+
+            position++;
+        }
+
+        return rankings;
+    }
+
+    /**
      * Internal record to hold employee ranking data before creating response
      */
     private record EmployeeRankingData(
@@ -133,6 +266,26 @@ public class RankingService {
             String lastName,
             Long salesCount,
             BigDecimal totalRevenue
+    ) {
+    }
+
+    /**
+     * Internal record to hold business metrics during calculation
+     */
+    private record BusinessMetrics(
+            Business business,
+            List<Sale> currentMonthSales,
+            List<Sale> previousMonthSales
+    ) {
+    }
+
+    /**
+     * Internal record to hold business ranking data before creating response
+     */
+    private record BusinessRankingData(
+            UUID businessId,
+            String businessName,
+            BigDecimal compositeScore
     ) {
     }
 }
