@@ -1,5 +1,6 @@
 package com.nempeth.korven.config;
 
+import com.nempeth.korven.security.ApiKeyAuthFilter;
 import com.nempeth.korven.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final ApiKeyAuthFilter apiKeyAuthFilter;
 
     @PostConstruct
     public void logCorsConfiguration() {
@@ -47,9 +49,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/auth/register", "/auth/register/owner", "/auth/register/employee", "/auth/login", "/auth/password/forgot", "/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/auth/password/validate").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/external/products").permitAll()
+                        .requestMatchers("/external/products/**").authenticated()
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
