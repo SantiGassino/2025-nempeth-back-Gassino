@@ -2,6 +2,7 @@ package com.nempeth.korven.utils;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,7 +11,7 @@ import java.util.Map;
  * Utility class to generate API keys for external services.
  * Uncomment @Component to run on application startup and generate a new API key.
  */
-// @Component
+@Component
 @RequiredArgsConstructor
 public class ApiKeyGenerator implements CommandLineRunner {
 
