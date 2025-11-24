@@ -35,6 +35,22 @@ public class JwtUtils {
                 .compact();
     }
 
+    /**
+     * Generates a permanent API key token without expiration date
+     * @param identifier Identifier for the API key (e.g., "external-api")
+     * @param claims Additional claims for the token
+     * @return A JWT token without expiration
+     */
+    public String generatePermanentApiKey(String identifier, Map<String, Object> claims) {
+        long now = System.currentTimeMillis();
+        return Jwts.builder()
+                .setSubject(identifier)
+                .addClaims(claims)
+                .setIssuedAt(new Date(now))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
     public Jws<Claims> parseToken(String token) {
         return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
     }
