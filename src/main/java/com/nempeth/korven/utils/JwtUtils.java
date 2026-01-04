@@ -51,7 +51,30 @@ public class JwtUtils {
                 .compact();
     }
 
+    /**
+     * Generates an API key token with 24 hours expiration
+     * @param identifier Identifier for the API key (e.g., "external-api")
+     * @param claims Additional claims for the token
+     * @return A JWT token that expires in 24 hours
+     */
+    public String generateExternalApiToken(String identifier, Map<String, Object> claims) {
+        long now = System.currentTimeMillis();
+        long twentyFourHoursMs = 24 * 60 * 60 * 1000; // 24 horas en milisegundos
+        
+        return Jwts.builder()
+                .setSubject(identifier)
+                .addClaims(claims)
+                .setIssuedAt(new Date(now))
+                .setExpiration(new Date(now + twentyFourHoursMs))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
     public Jws<Claims> parseToken(String token) {
         return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+    }
+    
+    public Date getExpirationFromToken(String token) {
+        return parseToken(token).getBody().getExpiration();
     }
 }
