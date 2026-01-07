@@ -32,9 +32,8 @@ public class Sale {
                 foreignKey = @ForeignKey(name = "fk_sale_user"))
     private User createdByUser;
 
-    @Column(name = "occurred_at", nullable = false, columnDefinition = "timestamptz")
-    @Builder.Default
-    private OffsetDateTime occurredAt = OffsetDateTime.now();
+    @Column(name = "occurred_at", columnDefinition = "timestamptz")
+    private OffsetDateTime occurredAt;
 
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
@@ -45,6 +44,5 @@ public class Sale {
     @PrePersist
     public void prePersist() {
         if (id == null) id = UUID.randomUUID();
-        if (occurredAt == null) occurredAt = OffsetDateTime.now();
     }
 }

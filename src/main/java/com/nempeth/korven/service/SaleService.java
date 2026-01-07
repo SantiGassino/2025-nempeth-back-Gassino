@@ -20,71 +20,56 @@ public class SaleService {
 
     private final SaleRepository saleRepository;
     private final SaleItemRepository saleItemRepository;
-    private final ProductRepository productRepository;
     private final BusinessRepository businessRepository;
     private final BusinessMembershipRepository membershipRepository;
     private final UserRepository userRepository;
 
     @Transactional
-    public UUID createSale(String userEmail, UUID businessId, CreateSaleRequest request) {
+    public UUID createSale(String userEmail, UUID businessId) {
         User user = validateUserBusinessAccess(userEmail, businessId);
         
         Business business = businessRepository.findById(businessId)
                 .orElseThrow(() -> new IllegalArgumentException("Negocio no encontrado"));
 
-        // Crear la venta
+        // Crear la venta vacía
         Sale sale = Sale.builder()
                 .business(business)
                 .createdByUser(user)
-                .occurredAt(OffsetDateTime.now())
-                .totalAmount(BigDecimal.ZERO) // Se calculará después
+                .occurredAt(null)
+                .totalAmount(BigDecimal.ZERO)
                 .build();
 
         sale = saleRepository.save(sale);
-
-        // Crear los items de venta
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        for (CreateSaleItemRequest itemRequest : request.items()) {
-            Product product = productRepository.findByIdAndBusinessId(itemRequest.productId(), businessId)
-                    .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado en este negocio"));
-
-            BigDecimal lineTotal = product.getPrice().multiply(BigDecimal.valueOf(itemRequest.quantity()));
-            totalAmount = totalAmount.add(lineTotal);
-
-            SaleItem saleItem = SaleItem.builder()
-                    .sale(sale)
-                    .product(product)
-                    .productNameAtSale(product.getName())
-                    .categoryName(product.getCategory().getName())
-                    .unitPrice(product.getPrice())
-                    .unitCost(product.getCost())
-                    .quantity(itemRequest.quantity())
-                    .lineTotal(lineTotal)
-                    .build();
-
-            saleItemRepository.save(saleItem);
-        }
-
-        // Actualizar el total de la venta
-        sale.setTotalAmount(totalAmount);
-        saleRepository.save(sale);
 
         return sale.getId();
     }
 
     @Transactional(readOnly = true)
-    public List<SaleResponse> getSalesByBusiness(String userEmail, UUID businessId) {
+    public List<SaleResponse> getSalesByBusiness(String userEmail, UUID businessId, Boolean open) {
         BusinessMembership membership = validateUserBusinessAccessAndGetMembership(userEmail, businessId);
         
+        List<Sale> sales;
         if (membership.getRole() == MembershipRole.OWNER) {
-            return saleRepository.findByBusinessIdOrderByOccurredAtDesc(businessId).stream()
-                    .map(this::mapToResponse)
-                    .toList();
+            if (open == null) {
+                sales = saleRepository.findByBusinessIdOrderByOccurredAtDesc(businessId);
+            } else if (open) {
+                sales = saleRepository.findByBusinessIdAndOccurredAtIsNullOrderByIdDesc(businessId);
+            } else {
+                sales = saleRepository.findByBusinessIdAndOccurredAtIsNotNullOrderByOccurredAtDesc(businessId);
+            }
         } else {
-            return saleRepository.findByBusinessIdAndCreatedByUserIdOrderByOccurredAtDesc(businessId, membership.getUser().getId()).stream()
-                    .map(this::mapToResponse)
-                    .toList();
+            if (open == null) {
+                sales = saleRepository.findByBusinessIdAndCreatedByUserIdOrderByOccurredAtDesc(businessId, membership.getUser().getId());
+            } else if (open) {
+                sales = saleRepository.findByBusinessIdAndCreatedByUserIdAndOccurredAtIsNullOrderByIdDesc(businessId, membership.getUser().getId());
+            } else {
+                sales = saleRepository.findByBusinessIdAndCreatedByUserIdAndOccurredAtIsNotNullOrderByOccurredAtDesc(businessId, membership.getUser().getId());
+            }
         }
+        
+        return sales.stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -121,6 +106,32 @@ public class SaleService {
         }
         
         return mapToResponse(sale);
+    }
+
+    @Transactional
+    public void closeSale(String userEmail, UUID businessId, UUID saleId) {
+        validateUserBusinessAccess(userEmail, businessId);
+        
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new IllegalArgumentException("Venta no encontrada"));
+        
+        if (!sale.getBusiness().getId().equals(businessId)) {
+            throw new IllegalArgumentException("La venta no pertenece a este negocio");
+        }
+        
+        if (sale.getOccurredAt() != null) {
+            throw new IllegalArgumentException("La venta ya está cerrada");
+        }
+        
+        // Recalcular el total desde los items
+        List<SaleItem> items = saleItemRepository.findBySaleId(saleId);
+        BigDecimal totalAmount = items.stream()
+                .map(SaleItem::getLineTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        sale.setOccurredAt(OffsetDateTime.now());
+        sale.setTotalAmount(totalAmount);
+        saleRepository.save(sale);
     }
 
     private User validateUserBusinessAccess(String userEmail, UUID businessId) {
