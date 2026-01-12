@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/auth/register", "/auth/register/owner", "/auth/register/employee", "/auth/login", "/auth/password/forgot", "/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/auth/password/validate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/external/token").permitAll()
                         .requestMatchers("/external/products/**").authenticated()
                         .anyRequest().authenticated()
                 )

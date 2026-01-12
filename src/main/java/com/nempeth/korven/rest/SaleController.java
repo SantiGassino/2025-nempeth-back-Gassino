@@ -24,13 +24,12 @@ public class SaleController {
 
     @PostMapping
     public ResponseEntity<?> createSale(@PathVariable UUID businessId,
-                                       @Valid @RequestBody CreateSaleRequest request,
                                        Authentication auth) {
         String userEmail = auth.getName();
-        UUID saleId = saleService.createSale(userEmail, businessId, request);
+        UUID saleId = saleService.createSale(userEmail, businessId);
         
         return ResponseEntity.ok(Map.of(
-                "message", "Venta registrada exitosamente",
+                "message", "Venta creada exitosamente",
                 "saleId", saleId.toString()
         ));
     }
@@ -43,6 +42,8 @@ public class SaleController {
                                                       @RequestParam(required = false)
                                                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                                                       OffsetDateTime endDate,
+                                                      @RequestParam(required = false)
+                                                      Boolean open,
                                                       Authentication auth) {
         String userEmail = auth.getName();
         List<SaleResponse> sales;
@@ -50,10 +51,22 @@ public class SaleController {
         if (startDate != null && endDate != null) {
             sales = saleService.getSalesByBusinessAndDateRange(userEmail, businessId, startDate, endDate);
         } else {
-            sales = saleService.getSalesByBusiness(userEmail, businessId);
+            sales = saleService.getSalesByBusiness(userEmail, businessId, open);
         }
         
         return ResponseEntity.ok(sales);
+    }
+
+    @PostMapping("/{saleId}/close")
+    public ResponseEntity<?> closeSale(@PathVariable UUID businessId,
+                                      @PathVariable UUID saleId,
+                                      Authentication auth) {
+        String userEmail = auth.getName();
+        saleService.closeSale(userEmail, businessId, saleId);
+        
+        return ResponseEntity.ok(Map.of(
+                "message", "Venta cerrada exitosamente"
+        ));
     }
 
     @GetMapping("/{saleId}")

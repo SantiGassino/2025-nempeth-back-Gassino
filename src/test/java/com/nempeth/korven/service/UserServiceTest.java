@@ -536,4 +536,183 @@ class UserServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Solo se puede promocionar a propietario (OWNER)");
     }
+
+    // Additional tests to cover missing lambda expressions
+
+    @Test
+    @DisplayName("Should throw exception when user not found in updateUserProfile")
+    void shouldThrowExceptionWhenUserNotFoundInUpdateProfile() {
+        UpdateUserProfileRequest request = new UpdateUserProfileRequest("new@example.com", "Name", "Last");
+        
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateUserProfile(userId, "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Usuario no encontrado");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when user not found in updateUserPassword")
+    void shouldThrowExceptionWhenUserNotFoundInUpdatePassword() {
+        UpdateUserPasswordRequest request = new UpdateUserPasswordRequest("old", "new");
+        
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateUserPassword(userId, "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Usuario no encontrado");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when user not found in deleteUser")
+    void shouldThrowExceptionWhenUserNotFoundInDelete() {
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.deleteUser(userId, "test@example.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Usuario no encontrado");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when requester not found in getUserById")
+    void shouldThrowExceptionWhenRequesterNotFoundInGetUserById() {
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.getUserById(userId, "test@example.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Usuario solicitante no encontrado");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when target user not found in getUserById")
+    void shouldThrowExceptionWhenTargetUserNotFoundInGetUserById() {
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.getUserById(userId, "test@example.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Usuario no encontrado");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when requester not found in updateMembershipStatus")
+    void shouldThrowExceptionWhenRequesterNotFoundInUpdateStatus() {
+        UpdateMembershipStatusRequest request = new UpdateMembershipStatusRequest(MembershipStatus.INACTIVE);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateMembershipStatus(businessId, UUID.randomUUID(), "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Usuario solicitante no encontrado");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when requester has no access to business in updateMembershipStatus")
+    void shouldThrowExceptionWhenRequesterHasNoAccessInUpdateStatus() {
+        UpdateMembershipStatusRequest request = new UpdateMembershipStatusRequest(MembershipStatus.INACTIVE);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateMembershipStatus(businessId, UUID.randomUUID(), "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("No tienes acceso a este negocio");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when requester membership is inactive in updateMembershipStatus")
+    void shouldThrowExceptionWhenRequesterInactiveInUpdateStatus() {
+        testMembership.setStatus(MembershipStatus.INACTIVE);
+        UpdateMembershipStatusRequest request = new UpdateMembershipStatusRequest(MembershipStatus.ACTIVE);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId)).thenReturn(Optional.of(testMembership));
+
+        assertThatThrownBy(() -> userService.updateMembershipStatus(businessId, UUID.randomUUID(), "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Tu membresía en este negocio no está activa");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when target user is not member in updateMembershipStatus")
+    void shouldThrowExceptionWhenTargetNotMemberInUpdateStatus() {
+        UUID targetUserId = UUID.randomUUID();
+        UpdateMembershipStatusRequest request = new UpdateMembershipStatusRequest(MembershipStatus.INACTIVE);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId)).thenReturn(Optional.of(testMembership));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, targetUserId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateMembershipStatus(businessId, targetUserId, "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("El usuario no es miembro de este negocio");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when requester not found in updateMembershipRole")
+    void shouldThrowExceptionWhenRequesterNotFoundInUpdateRole() {
+        UpdateMembershipRoleRequest request = new UpdateMembershipRoleRequest(MembershipRole.OWNER);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateMembershipRole(businessId, UUID.randomUUID(), "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Usuario solicitante no encontrado");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when requester has no access to business in updateMembershipRole")
+    void shouldThrowExceptionWhenRequesterHasNoAccessInUpdateRole() {
+        UpdateMembershipRoleRequest request = new UpdateMembershipRoleRequest(MembershipRole.OWNER);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateMembershipRole(businessId, UUID.randomUUID(), "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("No tienes acceso a este negocio");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when requester membership is inactive in updateMembershipRole")
+    void shouldThrowExceptionWhenRequesterInactiveInUpdateRole() {
+        testMembership.setStatus(MembershipStatus.INACTIVE);
+        UpdateMembershipRoleRequest request = new UpdateMembershipRoleRequest(MembershipRole.OWNER);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId)).thenReturn(Optional.of(testMembership));
+
+        assertThatThrownBy(() -> userService.updateMembershipRole(businessId, UUID.randomUUID(), "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Tu membresía en este negocio no está activa");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when target user is not member in updateMembershipRole")
+    void shouldThrowExceptionWhenTargetNotMemberInUpdateRole() {
+        UUID targetUserId = UUID.randomUUID();
+        UpdateMembershipRoleRequest request = new UpdateMembershipRoleRequest(MembershipRole.OWNER);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId)).thenReturn(Optional.of(testMembership));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, targetUserId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updateMembershipRole(businessId, targetUserId, "test@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("El usuario no es miembro de este negocio");
+    }
+
+    @Test
+    @DisplayName("Should throw exception when non-owner tries to update role")
+    void shouldThrowExceptionWhenNonOwnerTriesToUpdateRole() {
+        testMembership.setRole(MembershipRole.EMPLOYEE);
+        UpdateMembershipRoleRequest request = new UpdateMembershipRoleRequest(MembershipRole.OWNER);
+        
+        when(userRepository.findByEmailIgnoreCase("test@example.com")).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId)).thenReturn(Optional.of(testMembership));
+
+        assertThatThrownBy(() -> userService.updateMembershipRole(businessId, UUID.randomUUID(), "test@example.com", request))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Solo los propietarios pueden actualizar el role de membresía");
+    }
 }

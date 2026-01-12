@@ -31,6 +31,15 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
         OffsetDateTime endDate
     );
     
+    // Métodos para filtrar ventas abiertas/cerradas
+    List<Sale> findByBusinessIdAndOccurredAtIsNullOrderByIdDesc(UUID businessId);
+    
+    List<Sale> findByBusinessIdAndOccurredAtIsNotNullOrderByOccurredAtDesc(UUID businessId);
+    
+    List<Sale> findByBusinessIdAndCreatedByUserIdAndOccurredAtIsNullOrderByIdDesc(UUID businessId, UUID userId);
+    
+    List<Sale> findByBusinessIdAndCreatedByUserIdAndOccurredAtIsNotNullOrderByOccurredAtDesc(UUID businessId, UUID userId);
+    
     @Query("SELECT s FROM Sale s WHERE s.business.id = :businessId AND s.occurredAt >= :startDate ORDER BY s.occurredAt DESC")
     List<Sale> findRecentSalesForBusiness(@Param("businessId") UUID businessId, @Param("startDate") OffsetDateTime startDate);
 

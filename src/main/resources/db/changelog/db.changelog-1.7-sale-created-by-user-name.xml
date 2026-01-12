@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+           http://www.liquibase.org/xml/ns/dbchangelog
+           http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <changeSet id="013-sale-created-by-user-name" author="korven">
+        <!-- Agregar columna para guardar el nombre del usuario que creó la venta -->
+        <addColumn tableName="sale">
+            <column name="created_by_user_name" type="text">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <!-- Actualizar ventas existentes con el nombre del usuario -->
+        <sql>
+            UPDATE sale s
+            SET created_by_user_name = TRIM(CONCAT(u.name, ' ', u.last_name))
+            FROM users u
+            WHERE s.created_by_user_id = u.id
+            AND s.created_by_user_name IS NULL
+            AND u.name IS NOT NULL
+        </sql>
+        
+        <!-- Marcar como 'Sistema' las ventas sin usuario o sin nombre -->
+        <sql>
+            UPDATE sale
+            SET created_by_user_name = 'Sistema'
+            WHERE created_by_user_name IS NULL OR created_by_user_name = ''
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

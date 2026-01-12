@@ -1,5 +1,6 @@
 package com.nempeth.korven.security;
 
+import com.nempeth.korven.service.ExternalTokenCacheService;
 import com.nempeth.korven.utils.JwtUtils;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -22,6 +23,7 @@ import java.util.Collections;
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
+    private final ExternalTokenCacheService tokenCacheService;
     
     @Value("${app.api.key.enabled:true}")
     private boolean apiKeyEnabled;
@@ -69,6 +71,21 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
                 response.setContentType("application/json");
                 response.getWriter().write("{\"error\": \"Token inválido. Use una API Key válida\"}");
                 return;
+            }
+
+            // Obtener clientName para trazabilidad
+            String clientName = claims.get("clientName", String.class);
+            
+            // Verificar si el token es el token activo para este cliente
+            if (clientName != null && !tokenCacheService.isActiveToken(clientName, token)) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\": \"Token revocado. Este token ya no es válido. Solicite un nuevo token.\"}");
+                return;
+            }
+            
+            if (clientName != null) {
+                logger.info("Acceso a API externa desde cliente: " + clientName);
             }
 
             // Create authentication without user
