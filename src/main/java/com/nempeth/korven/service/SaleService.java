@@ -31,10 +31,17 @@ public class SaleService {
         Business business = businessRepository.findById(businessId)
                 .orElseThrow(() -> new IllegalArgumentException("Negocio no encontrado"));
 
+        // Construir nombre completo del usuario
+        String userName = (user.getName() + " " + user.getLastName()).trim();
+        if (userName.isEmpty()) {
+            userName = user.getEmail();
+        }
+
         // Crear la venta vacía
         Sale sale = Sale.builder()
                 .business(business)
                 .createdByUser(user)
+                .createdByUserName(userName)
                 .occurredAt(null)
                 .totalAmount(BigDecimal.ZERO)
                 .build();
@@ -175,8 +182,9 @@ public class SaleService {
                         .build())
                 .toList();
 
-        String createdByUserName = sale.getCreatedByUser() != null 
-                ? (sale.getCreatedByUser().getName() + " " + sale.getCreatedByUser().getLastName()).trim()
+        // Usar el nombre guardado en la venta, con fallback a "Sistema" si no existe
+        String createdByUserName = sale.getCreatedByUserName() != null && !sale.getCreatedByUserName().isEmpty()
+                ? sale.getCreatedByUserName()
                 : "Sistema";
 
         return SaleResponse.builder()

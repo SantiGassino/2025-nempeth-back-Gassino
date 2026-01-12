@@ -32,6 +32,9 @@ public class Sale {
                 foreignKey = @ForeignKey(name = "fk_sale_user"))
     private User createdByUser;
 
+    @Column(name = "created_by_user_name", columnDefinition = "text")
+    private String createdByUserName;
+
     @Column(name = "occurred_at", columnDefinition = "timestamptz")
     private OffsetDateTime occurredAt;
 
