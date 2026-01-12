@@ -100,6 +100,82 @@ class SaleServiceTest {
     }
     
     // ==================== CREATE SALE TESTS ====================
+    
+    @Test
+    void createSale_shouldSaveUserName_whenCreatingSale() {
+        // Given
+        when(userRepository.findByEmailIgnoreCase(userEmail)).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId))
+                .thenReturn(Optional.of(activeMembership));
+        when(businessRepository.findById(businessId)).thenReturn(Optional.of(testBusiness));
+        
+        Sale savedSale = Sale.builder()
+                .id(UUID.randomUUID())
+                .business(testBusiness)
+                .createdByUser(testUser)
+                .createdByUserName("John Doe")
+                .occurredAt(null)
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+        
+        when(saleRepository.save(any(Sale.class))).thenReturn(savedSale);
+        
+        // When
+        UUID saleId = saleService.createSale(userEmail, businessId);
+        
+        // Then
+        assertThat(saleId).isNotNull().isEqualTo(savedSale.getId());
+        
+        ArgumentCaptor<Sale> saleCaptor = ArgumentCaptor.forClass(Sale.class);
+        verify(saleRepository).save(saleCaptor.capture());
+        
+        Sale capturedSale = saleCaptor.getValue();
+        assertThat(capturedSale.getBusiness()).isEqualTo(testBusiness);
+        assertThat(capturedSale.getCreatedByUser()).isEqualTo(testUser);
+        assertThat(capturedSale.getCreatedByUserName()).isEqualTo("John Doe");
+        assertThat(capturedSale.getOccurredAt()).isNull();
+        assertThat(capturedSale.getTotalAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+    
+    @Test
+    void createSale_shouldUseEmailAsFallback_whenUserNameIsEmpty() {
+        // Given
+        User userWithoutName = User.builder()
+                .id(userId)
+                .email(userEmail)
+                .name("")
+                .lastName("")
+                .build();
+        
+        when(userRepository.findByEmailIgnoreCase(userEmail)).thenReturn(Optional.of(userWithoutName));
+        when(membershipRepository.findByBusinessIdAndUserId(businessId, userId))
+                .thenReturn(Optional.of(activeMembership));
+        when(businessRepository.findById(businessId)).thenReturn(Optional.of(testBusiness));
+        
+        Sale savedSale = Sale.builder()
+                .id(UUID.randomUUID())
+                .business(testBusiness)
+                .createdByUser(userWithoutName)
+                .createdByUserName(userEmail)
+                .occurredAt(null)
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+        
+        when(saleRepository.save(any(Sale.class))).thenReturn(savedSale);
+        
+        // When
+        UUID saleId = saleService.createSale(userEmail, businessId);
+        
+        // Then
+        assertThat(saleId).isNotNull();
+        
+        ArgumentCaptor<Sale> saleCaptor = ArgumentCaptor.forClass(Sale.class);
+        verify(saleRepository).save(saleCaptor.capture());
+        
+        Sale capturedSale = saleCaptor.getValue();
+        assertThat(capturedSale.getCreatedByUserName()).isEqualTo(userEmail);
+    }
+    
     // TODO: Actualizar tests para la nueva API sin CreateSaleRequest con items
     
     /*@Test
@@ -620,6 +696,7 @@ class SaleServiceTest {
                 .id(saleId)
                 .business(testBusiness)
                 .createdByUser(otherUser)
+                .createdByUserName("Jane Smith")
                 .occurredAt(OffsetDateTime.now())
                 .totalAmount(new BigDecimal("100.00"))
                 .build();
@@ -666,6 +743,7 @@ class SaleServiceTest {
                 .id(saleId)
                 .business(otherBusiness)
                 .createdByUser(testUser)
+                .createdByUserName("John Doe")
                 .occurredAt(OffsetDateTime.now())
                 .totalAmount(new BigDecimal("100.00"))
                 .build();
@@ -727,7 +805,7 @@ class SaleServiceTest {
     }
     
     @Test
-    void getSaleById_shouldFormatUserName_whenBothNamesPresent() {
+    void getSaleById_shouldUseStoredUserName_whenAvailable() {
         // Given
         UUID saleId = UUID.randomUUID();
         Sale sale = createTestSale(saleId, new BigDecimal("100.00"));
@@ -746,21 +824,15 @@ class SaleServiceTest {
     }
     
     @Test
-    void getSaleById_shouldHandleSingleName() {
+    void getSaleById_shouldReturnSistema_whenCreatedByUserNameIsNull() {
         // Given
         UUID saleId = UUID.randomUUID();
-        
-        User userWithOnlyName = User.builder()
-                .id(userId)
-                .email(userEmail)
-                .name("John")
-                .lastName("")
-                .build();
         
         Sale sale = Sale.builder()
                 .id(saleId)
                 .business(testBusiness)
-                .createdByUser(userWithOnlyName)
+                .createdByUser(null)
+                .createdByUserName(null)
                 .occurredAt(OffsetDateTime.now())
                 .totalAmount(new BigDecimal("100.00"))
                 .build();
@@ -775,7 +847,7 @@ class SaleServiceTest {
         SaleResponse response = saleService.getSaleById(userEmail, businessId, saleId);
         
         // Then
-        assertThat(response.createdByUserName()).isEqualTo("John");
+        assertThat(response.createdByUserName()).isEqualTo("Sistema");
     }
     
     // ==================== HELPER METHODS ====================
@@ -785,6 +857,7 @@ class SaleServiceTest {
                 .id(saleId)
                 .business(testBusiness)
                 .createdByUser(testUser)
+                .createdByUserName("John Doe")
                 .occurredAt(OffsetDateTime.now())
                 .totalAmount(totalAmount)
                 .build();
