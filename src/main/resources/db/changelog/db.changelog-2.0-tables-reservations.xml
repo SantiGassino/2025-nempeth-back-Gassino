@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+           http://www.liquibase.org/xml/ns/dbchangelog
+           http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <changeSet id="200-restaurant-tables" author="korven">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="restaurant_table"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="restaurant_table">
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="business_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_table_business"
+                             referencedTableName="business" referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+            <column name="table_code" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="capacity" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sector" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="text" defaultValue="FREE">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="restaurant_table"
+                             columnNames="business_id,table_code"
+                             constraintName="uq_table_business_code"/>
+
+        <rollback>
+            <dropTable tableName="restaurant_table" cascadeConstraints="true"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="201-reservations" author="korven">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="reservation"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="reservation">
+            <column name="id" type="uuid" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="business_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_reservation_business"
+                             referencedTableName="business" referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+            <column name="table_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_reservation_table"
+                             referencedTableName="restaurant_table" referencedColumnNames="id"
+                             deleteCascade="false"/>
+            </column>
+            <column name="customer_name" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="customer_contact" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reservation_datetime" type="timestamptz">
+                <constraints nullable="false"/>
+            </column>
+            <column name="party_size" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="text" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="forced" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by_user_id" type="uuid">
+                <constraints foreignKeyName="fk_reservation_user"
+                             referencedTableName="users" referencedColumnNames="id"
+                             deleteCascade="false"/>
+            </column>
+            <column name="created_at" type="timestamptz" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="notes" type="text"/>
+        </createTable>
+
+        <createIndex tableName="reservation" indexName="ix_reservation_business_datetime">
+            <column name="business_id"/>
+            <column name="reservation_datetime" descending="true"/>
+        </createIndex>
+
+        <createIndex tableName="reservation" indexName="ix_reservation_table_datetime">
+            <column name="table_id"/>
+            <column name="reservation_datetime"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex tableName="reservation" indexName="ix_reservation_table_datetime"/>
+            <dropIndex tableName="reservation" indexName="ix_reservation_business_datetime"/>
+            <dropTable tableName="reservation" cascadeConstraints="true"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
