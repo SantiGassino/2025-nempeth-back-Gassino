@@ -102,10 +102,10 @@ public class TableService {
             throw new IllegalArgumentException("Solo se pueden editar los datos de mesas en estado Libre");
         }
         
-        // Verificar si hay una reserva próxima (45 min)
+        // Verificar si hay una reserva próxima (20 min)
         if (hasUpcomingReservation(tableId)) {
-            throw new IllegalArgumentException(
-                "No se puede editar esta mesa. Pronto iniciar\u00e1 una reserva (menos de 45 minutos)"
+            throw new IllegalStateException(
+                "No se puede ocupar esta mesa manualmente. Pronto iniciará una reserva (menos de 20 minutos)"
             );
         }
 
@@ -223,7 +223,7 @@ public class TableService {
         // No se puede cambiar a RESERVED manualmente - solo por scheduler
         if (newStatus == TableStatus.RESERVED) {
             throw new IllegalArgumentException(
-                "No se puede cambiar manualmente a Reservada. El estado Reservada se asigna automáticamente 45 minutos antes del inicio de una reserva."
+                "No se puede cambiar manualmente a Reservada. El estado Reservada se asigna automáticamente 20 minutos antes del inicio de una reserva."
             );
         }
 
@@ -259,11 +259,11 @@ public class TableService {
     }
     
     /**
-     * Verifica si una mesa tiene una reserva PENDING que inicia en los próximos 45 minutos
+     * Verifica si una mesa tiene una reserva PENDING que inicia en los próximos 20 minutos
      */
     private boolean hasUpcomingReservation(UUID tableId) {
         OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime upcomingTime = now.plusMinutes(RESERVATION_LOCK_MINUTES);
+        OffsetDateTime upcomingTime = now.plusMinutes(20);
         
         List<Reservation> upcomingReservations = reservationRepository.findUpcomingReservationsForTable(
             tableId, now, upcomingTime

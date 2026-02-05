@@ -18,14 +18,14 @@ import java.util.List;
 
 /**
  * Scheduler que automáticamente cambia el estado de las mesas a RESERVED
- * cuando una reserva está por iniciar (45 minutos antes).
+ * cuando una reserva está por iniciar (20 minutos antes).
  */
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class ReservationScheduler {
 
-    private static final int RESERVATION_LOCK_MINUTES = 45;
+    private static final int RESERVATION_LOCK_MINUTES = 20;
     
     private final ReservationRepository reservationRepository;
     private final TableRepository tableRepository;
@@ -53,7 +53,7 @@ public class ReservationScheduler {
 
     /**
      * Procesa una reserva específica para cambiar el estado de sus mesas a RESERVED
-     * si la reserva está por iniciar (menos de 45 minutos).
+     * si la reserva está por iniciar (menos de 20 minutos).
      * Este método es público para poder ser llamado desde otros servicios.
      */
     @Transactional
@@ -66,10 +66,10 @@ public class ReservationScheduler {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime upcomingTime = now.plusMinutes(RESERVATION_LOCK_MINUTES);
 
-        // Solo procesar si la reserva inicia en los próximos 45 minutos
+        // Solo procesar si la reserva inicia en los próximos 20 minutos
         if (reservation.getStartDateTime().isAfter(now) && 
             reservation.getStartDateTime().isBefore(upcomingTime)) {
-            log.info("Procesando reserva {} inmediatamente (inicia en menos de 45 minutos)", reservationId);
+            log.info("Procesando reserva {} inmediatamente (inicia en menos de 20 minutos)", reservationId);
             processReservationTables(reservation);
         }
     }

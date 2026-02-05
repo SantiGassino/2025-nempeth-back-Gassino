@@ -95,11 +95,11 @@ public class ReservationService {
         }
 
         // VALIDACIÓN 5: No permitir overlapping en NINGUNA de las mesas (sin excepciones)
-        // Incluye buffer de 45 minutos ANTES y DESPUÉS para separación entre reservas
+        // Incluye buffer de 20 minutos ANTES y 5 minutos DESPUÉS para separación entre reservas
         // - Buffer ANTES: evita que se cree una reserva justo antes de otra (tiempo de preparación)
         // - Buffer DESPUÉS: evita que se cree una reserva justo después de otra (tiempo de limpieza)
-        OffsetDateTime bufferStartTime = request.startDateTime().minusMinutes(45);
-        OffsetDateTime bufferEndTime = request.endDateTime().plusMinutes(45);
+        OffsetDateTime bufferStartTime = request.startDateTime().minusMinutes(20);
+        OffsetDateTime bufferEndTime = request.endDateTime().plusMinutes(5);
         
         for (TableEntity table : tables) {
             List<Reservation> overlapping = reservationRepository.findOverlappingReservationsForTable(
@@ -111,7 +111,7 @@ public class ReservationService {
             if (!overlapping.isEmpty()) {
                 throw new IllegalArgumentException(
                         String.format("La mesa %s ya tiene reservas en conflicto para ese horario. " +
-                                        "Se requiere un mínimo de 45 minutos de separación entre reservas.",
+                                        "Se requiere 20 minutos antes y 5 minutos después de separación entre reservas.",
                                 table.getTableCode())
                 );
             }
@@ -136,7 +136,7 @@ public class ReservationService {
 
         reservation = reservationRepository.save(reservation);
 
-        // Procesar inmediatamente si la reserva inicia en menos de 45 minutos
+        // Procesar inmediatamente si la reserva inicia en menos de 20 minutos
         reservationScheduler.processReservationIfUpcoming(reservation.getId());
 
         return reservation.getId();
@@ -237,8 +237,8 @@ public class ReservationService {
         if (request.startDateTime() != null || request.endDateTime() != null || 
             (request.tableIds() != null && !request.tableIds().isEmpty())) {
             
-            OffsetDateTime bufferStartTime = newStart.minusMinutes(45);
-            OffsetDateTime bufferEndTime = newEnd.plusMinutes(45);
+            OffsetDateTime bufferStartTime = newStart.minusMinutes(20);
+            OffsetDateTime bufferEndTime = newEnd.plusMinutes(5);
             
             for (TableEntity table : finalTables) {
                 List<Reservation> overlapping = reservationRepository.findOverlappingReservationsForTableExcluding(
@@ -251,7 +251,7 @@ public class ReservationService {
                 if (!overlapping.isEmpty()) {
                     throw new IllegalArgumentException(
                             String.format("La mesa %s ya tiene reservas en conflicto para ese horario. " +
-                                            "Se requiere un mínimo de 45 minutos de separación entre reservas.",
+                                            "Se requiere 20 minutos antes y 5 minutos después de separación entre reservas.",
                                     table.getTableCode())
                     );
                 }
@@ -271,7 +271,7 @@ public class ReservationService {
             }
 
             // Las nuevas mesas NO cambian a RESERVED inmediatamente
-            // El scheduler las cambiará 45 minutos antes del inicio
+            // El scheduler las cambiará 20 minutos antes del inicio
             reservation.setTables(finalTables);
         }
 
@@ -299,7 +299,7 @@ public class ReservationService {
 
         reservationRepository.save(reservation);
 
-        // Procesar inmediatamente si la reserva inicia en menos de 45 minutos
+        // Procesar inmediatamente si la reserva inicia en menos de 20 minutos
         reservationScheduler.processReservationIfUpcoming(reservationId);
     }
 
