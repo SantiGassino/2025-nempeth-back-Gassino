@@ -4,6 +4,7 @@ import com.nempeth.korven.rest.dto.CreateReservationRequest;
 import com.nempeth.korven.rest.dto.ReservationResponse;
 import com.nempeth.korven.rest.dto.UpdateReservationRequest;
 import com.nempeth.korven.rest.dto.TableGanttResponse;
+import com.nempeth.korven.rest.dto.ReservationAnalyticsResponse;
 import com.nempeth.korven.service.ReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,33 @@ public class ReservationController {
         List<ReservationResponse> reservations = reservationService.getReservations(
                 userEmail, businessId, startDate, endDate);
         return ResponseEntity.ok(reservations);
+    }
+
+    @GetMapping("/upcoming")
+    public ResponseEntity<List<ReservationResponse>> getUpcomingReservations(
+            @PathVariable UUID businessId,
+            Authentication auth) {
+        String userEmail = auth.getName();
+        List<ReservationResponse> reservations = reservationService.getUpcomingReservations(userEmail, businessId);
+        return ResponseEntity.ok(reservations);
+    }
+
+    @GetMapping("/past")
+    public ResponseEntity<List<ReservationResponse>> getPastReservations(
+            @PathVariable UUID businessId,
+            Authentication auth) {
+        String userEmail = auth.getName();
+        List<ReservationResponse> reservations = reservationService.getPastReservations(userEmail, businessId);
+        return ResponseEntity.ok(reservations);
+    }
+
+    @GetMapping("/analytics")
+    public ResponseEntity<ReservationAnalyticsResponse> getReservationAnalytics(
+            @PathVariable UUID businessId,
+            Authentication auth) {
+        String userEmail = auth.getName();
+        ReservationAnalyticsResponse analytics = reservationService.getReservationAnalytics(userEmail, businessId);
+        return ResponseEntity.ok(analytics);
     }
 
     @GetMapping("/gantt")

@@ -17,6 +17,7 @@ import com.nempeth.korven.rest.dto.TableSimpleResponse;
 import com.nempeth.korven.rest.dto.UpdateReservationRequest;
 import com.nempeth.korven.rest.dto.ReservationGanttSlot;
 import com.nempeth.korven.rest.dto.TableGanttResponse;
+import com.nempeth.korven.rest.dto.ReservationAnalyticsResponse;
 import com.nempeth.korven.scheduler.ReservationScheduler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -512,6 +515,201 @@ public class ReservationService {
                     );
                 })
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReservationResponse> getUpcomingReservations(String userEmail, UUID businessId) {
+        validateUserBusinessAccess(userEmail, businessId);
+
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Reservation> reservations = reservationRepository.findByBusinessIdOrderByStartDateTimeDesc(businessId);
+
+        return reservations.stream()
+                .filter(r -> r.getStartDateTime().isAfter(now) || r.getStartDateTime().isEqual(now))
+                .sorted(Comparator.comparing(Reservation::getStartDateTime))
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReservationResponse> getPastReservations(String userEmail, UUID businessId) {
+        validateUserBusinessAccess(userEmail, businessId);
+
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Reservation> reservations = reservationRepository.findByBusinessIdOrderByStartDateTimeDesc(businessId);
+
+        return reservations.stream()
+                .filter(r -> r.getStartDateTime().isBefore(now))
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ReservationAnalyticsResponse getReservationAnalytics(String userEmail, UUID businessId) {
+        validateUserBusinessAccess(userEmail, businessId);
+
+        List<Reservation> allReservations = reservationRepository.findByBusinessIdOrderByStartDateTimeDesc(businessId);
+
+        // 1. RESUMEN GENERAL
+        long total = allReservations.size();
+        long pending = allReservations.stream().filter(r -> r.getStatus() == ReservationStatus.PENDING).count();
+        long completed = allReservations.stream().filter(r -> r.getStatus() == ReservationStatus.COMPLETED).count();
+        long cancelled = allReservations.stream().filter(r -> r.getStatus() == ReservationStatus.CANCELLED).count();
+        long noShow = allReservations.stream().filter(r -> r.getStatus() == ReservationStatus.NO_SHOW).count();
+        long inProgress = allReservations.stream().filter(r -> r.getStatus() == ReservationStatus.IN_PROGRESS).count();
+
+        double completionRate = total > 0 ? (completed * 100.0) / total : 0.0;
+        double noShowRate = total > 0 ? (noShow * 100.0) / total : 0.0;
+        double cancellationRate = total > 0 ? (cancelled * 100.0) / total : 0.0;
+
+        ReservationAnalyticsResponse.ReservationSummary summary = new ReservationAnalyticsResponse.ReservationSummary(
+                total, pending, completed, cancelled, noShow, inProgress,
+                completionRate, noShowRate, cancellationRate
+        );
+
+        // 2. UTILIZACIÓN POR MESA
+        Map<String, List<Reservation>> reservationsByTable = allReservations.stream()
+                .flatMap(r -> r.getTables().stream().map(t -> Map.entry(t.getTableCode(), r)))
+                .collect(Collectors.groupingBy(
+                        Map.Entry::getKey,
+                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())
+                ));
+
+        List<ReservationAnalyticsResponse.TableUtilization> tableUtilization = reservationsByTable.entrySet().stream()
+                .map(entry -> {
+                    String tableCode = entry.getKey();
+                    List<Reservation> tableReservations = entry.getValue();
+
+                    long totalReservations = tableReservations.size();
+                    long totalMinutes = tableReservations.stream()
+                            .mapToLong(r -> Duration.between(r.getStartDateTime(), r.getEndDateTime()).toMinutes())
+                            .sum();
+                    long totalHours = totalMinutes / 60;
+                    long completedRes = tableReservations.stream()
+                            .filter(r -> r.getStatus() == ReservationStatus.COMPLETED)
+                            .count();
+                    long noShows = tableReservations.stream()
+                            .filter(r -> r.getStatus() == ReservationStatus.NO_SHOW)
+                            .count();
+
+                    // Tasa de utilización basada en reservas completadas vs total
+                    double utilizationRate = totalReservations > 0 ? (completedRes * 100.0) / totalReservations : 0.0;
+
+                    return new ReservationAnalyticsResponse.TableUtilization(
+                            tableCode, totalReservations, totalHours, completedRes, noShows, utilizationRate
+                    );
+                })
+                .sorted(Comparator.comparing(ReservationAnalyticsResponse.TableUtilization::totalReservations).reversed())
+                .toList();
+
+        // 3. CONFIABILIDAD DE CLIENTES
+        Map<String, List<Reservation>> reservationsByCustomer = allReservations.stream()
+                .collect(Collectors.groupingBy(Reservation::getCustomerName));
+
+        List<ReservationAnalyticsResponse.ClientReliability> clientReliability = reservationsByCustomer.entrySet().stream()
+                .map(entry -> {
+                    String customerName = entry.getKey();
+                    List<Reservation> customerReservations = entry.getValue();
+
+                    String customerContact = customerReservations.stream()
+                            .map(Reservation::getCustomerContact)
+                            .filter(c -> c != null && !c.isEmpty())
+                            .findFirst()
+                            .orElse("");
+
+                    long totalRes = customerReservations.size();
+                    long completedRes = customerReservations.stream()
+                            .filter(r -> r.getStatus() == ReservationStatus.COMPLETED)
+                            .count();
+                    long noShows = customerReservations.stream()
+                            .filter(r -> r.getStatus() == ReservationStatus.NO_SHOW)
+                            .count();
+                    long cancellations = customerReservations.stream()
+                            .filter(r -> r.getStatus() == ReservationStatus.CANCELLED)
+                            .count();
+
+                    // Score: completed=100%, noShow=-50%, cancelled=-25%
+                    double reliabilityScore = totalRes > 0 
+                            ? ((completedRes * 100.0) - (noShows * 50.0) - (cancellations * 25.0)) / totalRes 
+                            : 0.0;
+
+                    return new ReservationAnalyticsResponse.ClientReliability(
+                            customerName, customerContact, totalRes, completedRes, noShows, cancellations, reliabilityScore
+                    );
+                })
+                .sorted(Comparator.comparing(ReservationAnalyticsResponse.ClientReliability::totalReservations).reversed())
+                .limit(20) // Top 20 clientes
+                .toList();
+
+        // 4. ANÁLISIS POR FRANJA HORARIA
+        Map<Integer, List<Reservation>> reservationsByHour = allReservations.stream()
+                .collect(Collectors.groupingBy(r -> r.getStartDateTime().getHour()));
+
+        List<ReservationAnalyticsResponse.TimeSlotAnalysis> timeSlotAnalysis = reservationsByHour.entrySet().stream()
+                .map(entry -> {
+                    int hour = entry.getKey();
+                    List<Reservation> hourReservations = entry.getValue();
+
+                    long totalRes = hourReservations.size();
+                    long noShows = hourReservations.stream()
+                            .filter(r -> r.getStatus() == ReservationStatus.NO_SHOW)
+                            .count();
+                    double noShowRateHour = totalRes > 0 ? (noShows * 100.0) / totalRes : 0.0;
+                    double avgPartySize = hourReservations.stream()
+                            .mapToInt(Reservation::getPartySize)
+                            .average()
+                            .orElse(0.0);
+
+                    return new ReservationAnalyticsResponse.TimeSlotAnalysis(
+                            hour, totalRes, noShows, noShowRateHour, avgPartySize
+                    );
+                })
+                .sorted(Comparator.comparing(ReservationAnalyticsResponse.TimeSlotAnalysis::hourOfDay))
+                .toList();
+
+        // 5. DESPERDICIO DE CAPACIDAD
+        // Agrupamos reservas completadas por código de mesa
+        Map<String, List<Map.Entry<Integer, Integer>>> capacityByTable = allReservations.stream()
+                .filter(r -> r.getStatus() == ReservationStatus.COMPLETED)
+                .flatMap(r -> r.getTables().stream()
+                        .map(t -> Map.entry(t.getTableCode(), Map.entry(t.getCapacity(), r.getPartySize()))))
+                .collect(Collectors.groupingBy(
+                        Map.Entry::getKey,
+                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())
+                ));
+
+        List<ReservationAnalyticsResponse.CapacityWaste> capacityWaste = capacityByTable.entrySet().stream()
+                .map(entry -> {
+                    String tableCode = entry.getKey();
+                    List<Map.Entry<Integer, Integer>> capacityData = entry.getValue();
+
+                    int tableCapacity = capacityData.stream()
+                            .map(Map.Entry::getKey)
+                            .findFirst()
+                            .orElse(0);
+
+                    long reservationCount = capacityData.size();
+                    double avgPartySize = capacityData.stream()
+                            .mapToInt(Map.Entry::getValue)
+                            .average()
+                            .orElse(0.0);
+
+                    // Porcentaje de desperdicio: capacidad no utilizada
+                    double wastePercentage = tableCapacity > 0 
+                            ? ((tableCapacity - avgPartySize) * 100.0) / tableCapacity 
+                            : 0.0;
+
+                    return new ReservationAnalyticsResponse.CapacityWaste(
+                            tableCode, tableCapacity, reservationCount, avgPartySize, wastePercentage
+                    );
+                })
+                .filter(cw -> cw.wastePercentage() > 20) // Solo mostrar si hay más de 20% desperdicio
+                .sorted(Comparator.comparing(ReservationAnalyticsResponse.CapacityWaste::wastePercentage).reversed())
+                .toList();
+
+        return new ReservationAnalyticsResponse(
+                summary, tableUtilization, clientReliability, timeSlotAnalysis, capacityWaste
+        );
     }
 
     private ReservationResponse mapToResponse(Reservation reservation) {
