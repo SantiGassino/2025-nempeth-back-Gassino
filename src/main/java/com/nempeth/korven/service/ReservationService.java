@@ -125,6 +125,7 @@ public class ReservationService {
                 .tables(tables)
                 .customerName(request.customerName())
                 .customerContact(request.customerContact())
+                .customerDocument(request.customerDocument())
                 .startDateTime(request.startDateTime())
                 .endDateTime(request.endDateTime())
                 .partySize(request.partySize())
@@ -287,6 +288,10 @@ public class ReservationService {
 
         if (request.customerContact() != null) {
             reservation.setCustomerContact(request.customerContact());
+        }
+
+        if (request.customerDocument() != null) {
+            reservation.setCustomerDocument(request.customerDocument());
         }
 
         if (request.partySize() != null) {
@@ -499,6 +504,7 @@ public class ReservationService {
                             .map(r -> new ReservationGanttSlot(
                                     r.getId(),
                                     r.getCustomerName(),
+                                    r.getCustomerDocument(),
                                     r.getStartDateTime(),
                                     r.getEndDateTime(),
                                     r.getPartySize(),
@@ -603,18 +609,25 @@ public class ReservationService {
                 .toList();
 
         // 3. CONFIABILIDAD DE CLIENTES
+        // Agrupamos por documento (identificador único) en lugar de nombre
         Map<String, List<Reservation>> reservationsByCustomer = allReservations.stream()
-                .collect(Collectors.groupingBy(Reservation::getCustomerName));
+                .collect(Collectors.groupingBy(Reservation::getCustomerDocument));
 
         List<ReservationAnalyticsResponse.ClientReliability> clientReliability = reservationsByCustomer.entrySet().stream()
                 .map(entry -> {
-                    String customerName = entry.getKey();
+                    String customerDocument = entry.getKey();
                     List<Reservation> customerReservations = entry.getValue();
 
+                    // Obtener el nombre más reciente del cliente (por si cambia de nombre)
+                    String customerName = customerReservations.stream()
+                            .max(Comparator.comparing(Reservation::getCreatedAt))
+                            .map(Reservation::getCustomerName)
+                            .orElse("Desconocido");
+
                     String customerContact = customerReservations.stream()
+                            .max(Comparator.comparing(Reservation::getCreatedAt))
                             .map(Reservation::getCustomerContact)
                             .filter(c -> c != null && !c.isEmpty())
-                            .findFirst()
                             .orElse("");
 
                     long totalRes = customerReservations.size();
@@ -634,7 +647,7 @@ public class ReservationService {
                             : 0.0;
 
                     return new ReservationAnalyticsResponse.ClientReliability(
-                            customerName, customerContact, totalRes, completedRes, noShows, cancellations, reliabilityScore
+                            customerName, customerContact, customerDocument, totalRes, completedRes, noShows, cancellations, reliabilityScore
                     );
                 })
                 .sorted(Comparator.comparing(ReservationAnalyticsResponse.ClientReliability::totalReservations).reversed())
@@ -731,6 +744,7 @@ public class ReservationService {
                 tablesResponse,
                 reservation.getCustomerName(),
                 reservation.getCustomerContact(),
+                reservation.getCustomerDocument(),
                 reservation.getStartDateTime(),
                 reservation.getEndDateTime(),
                 reservation.getPartySize(),

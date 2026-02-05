@@ -11,6 +11,7 @@ import java.util.UUID;
 public record ReservationGanttSlot(
     UUID reservationId,
     String customerName,
+    String customerDocument,
     OffsetDateTime startDateTime,
     OffsetDateTime endDateTime,
     Integer partySize,

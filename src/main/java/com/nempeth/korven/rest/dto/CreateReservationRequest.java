@@ -16,6 +16,9 @@ public record CreateReservationRequest(
     @NotBlank(message = "El contacto del cliente es obligatorio")
     String customerContact,
     
+    @NotBlank(message = "El documento del cliente es obligatorio")
+    String customerDocument,
+    
     @NotNull(message = "La fecha y hora de inicio son obligatorias")
     OffsetDateTime startDateTime,
     

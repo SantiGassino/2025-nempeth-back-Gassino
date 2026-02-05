@@ -33,6 +33,7 @@ public record ReservationAnalyticsResponse(
     public record ClientReliability(
             String customerName,
             String customerContact,
+            String customerDocument,
             long totalReservations,
             long completedReservations,
             long noShows,

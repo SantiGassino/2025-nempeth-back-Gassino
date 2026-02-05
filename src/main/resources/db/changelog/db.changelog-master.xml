@@ -16,4 +16,5 @@
   <include file="db/changelog/db.changelog-1.7-sale-created-by-user-name.xml"/>
   <include file="db/changelog/db.changelog-2.0-tables-reservations.xml"/>
   <include file="db/changelog/db.changelog-2.1-reservations-multi-table.xml"/>
+  <include file="db/changelog/db.changelog-2.2-add-customer-document.xml"/>
 </databaseChangeLog>

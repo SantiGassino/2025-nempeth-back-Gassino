@@ -11,6 +11,7 @@ public record ReservationResponse(
     List<TableSimpleResponse> tables,
     String customerName,
     String customerContact,
+    String customerDocument,
     OffsetDateTime startDateTime,
     OffsetDateTime endDateTime,
     Integer partySize,

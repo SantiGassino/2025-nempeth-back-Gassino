@@ -45,6 +45,9 @@ public class Reservation {
     @Column(name = "customer_contact", nullable = false, columnDefinition = "text")
     private String customerContact;
 
+    @Column(name = "customer_document", nullable = false, columnDefinition = "text")
+    private String customerDocument;
+
     @Column(name = "start_datetime", nullable = false, columnDefinition = "timestamptz")
     private OffsetDateTime startDateTime;
 

@@ -10,6 +10,7 @@ import java.util.UUID;
 public record UpdateReservationRequest(
     String customerName,
     String customerContact,
+    String customerDocument,
     Integer partySize,
     @Size(min = 1, message = "Debe seleccionar al menos una mesa")
     List<UUID> tableIds,
