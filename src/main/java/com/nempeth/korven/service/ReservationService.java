@@ -1,5 +1,6 @@
 package com.nempeth.korven.service;
 
+import com.nempeth.korven.constants.MembershipRole;
 import com.nempeth.korven.constants.MembershipStatus;
 import com.nempeth.korven.constants.ReservationStatus;
 import com.nempeth.korven.constants.TableStatus;
@@ -47,7 +48,7 @@ public class ReservationService {
 
     @Transactional
     public UUID createReservation(String userEmail, UUID businessId, CreateReservationRequest request) {
-        validateUserBusinessAccess(userEmail, businessId);
+        validateUserIsOwner(userEmail, businessId);
 
         // VALIDACIÓN 1: Fechas no pueden estar en el pasado
         OffsetDateTime now = OffsetDateTime.now();
@@ -176,7 +177,7 @@ public class ReservationService {
 
     @Transactional
     public void updateReservation(String userEmail, UUID businessId, UUID reservationId, UpdateReservationRequest request) {
-        validateUserBusinessAccess(userEmail, businessId);
+        validateUserIsOwner(userEmail, businessId);
 
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reserva no encontrada"));
@@ -381,7 +382,7 @@ public class ReservationService {
 
     @Transactional
     public void cancelReservation(String userEmail, UUID businessId, UUID reservationId) {
-        validateUserBusinessAccess(userEmail, businessId);
+        validateUserIsOwner(userEmail, businessId);
 
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reserva no encontrada"));
@@ -552,7 +553,7 @@ public class ReservationService {
 
     @Transactional(readOnly = true)
     public ReservationAnalyticsResponse getReservationAnalytics(String userEmail, UUID businessId) {
-        validateUserBusinessAccess(userEmail, businessId);
+        validateUserIsOwner(userEmail, businessId);
 
         List<Reservation> allReservations = reservationRepository.findByBusinessIdOrderByStartDateTimeDesc(businessId);
 
@@ -765,6 +766,22 @@ public class ReservationService {
 
         if (membership.getStatus() != MembershipStatus.ACTIVE) {
             throw new IllegalArgumentException("Tu membresía no está activa");
+        }
+    }
+
+    private void validateUserIsOwner(String userEmail, UUID businessId) {
+        User user = userRepository.findByEmailIgnoreCase(userEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
+        
+        BusinessMembership membership = membershipRepository.findByBusinessIdAndUserId(businessId, user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("No tienes acceso a este negocio"));
+
+        if (membership.getStatus() != MembershipStatus.ACTIVE) {
+            throw new IllegalArgumentException("Tu membresía no está activa");
+        }
+
+        if (membership.getRole() != MembershipRole.OWNER) {
+            throw new IllegalArgumentException("Solo los propietarios pueden realizar esta acción");
         }
     }
 }
