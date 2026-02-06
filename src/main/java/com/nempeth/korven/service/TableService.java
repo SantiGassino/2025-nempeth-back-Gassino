@@ -97,6 +97,11 @@ public class TableService {
             throw new IllegalArgumentException("La mesa no pertenece a este negocio");
         }
 
+        // No se pueden editar mesas inactivas
+        if (table.getStatus() == TableStatus.INACTIVE) {
+            throw new IllegalArgumentException("No se pueden editar mesas inactivas. Reactive la mesa primero");
+        }
+
         // Solo se puede editar si la mesa está en FREE
         if (table.getStatus() != TableStatus.FREE) {
             throw new IllegalArgumentException("Solo se pueden editar los datos de mesas en estado Libre");
@@ -136,6 +141,13 @@ public class TableService {
 
         if (!table.getBusiness().getId().equals(businessId)) {
             throw new IllegalArgumentException("La mesa no pertenece a este negocio");
+        }
+
+        // VALIDACIÓN 0: Las mesas INACTIVE no pueden cambiar de estado (deben reactivarse primero)
+        if (table.getStatus() == TableStatus.INACTIVE) {
+            throw new IllegalArgumentException(
+                "No se puede cambiar el estado de una mesa inactiva. Use el endpoint de reactivación primero"
+            );
         }
 
         // VALIDACIÓN 1: Verificar si la mesa está en una reserva activa (IN_PROGRESS)
@@ -181,6 +193,11 @@ public class TableService {
             throw new IllegalArgumentException("La mesa no pertenece a este negocio");
         }
 
+        // No se puede cambiar capacidad de mesas inactivas
+        if (table.getStatus() == TableStatus.INACTIVE) {
+            throw new IllegalArgumentException("No se puede cambiar la capacidad de mesas inactivas. Reactive la mesa primero");
+        }
+
         // Solo se puede cambiar la capacidad si la mesa está en FREE
         if (table.getStatus() != TableStatus.FREE) {
             throw new IllegalArgumentException(
@@ -203,12 +220,48 @@ public class TableService {
             throw new IllegalArgumentException("La mesa no pertenece a este negocio");
         }
 
-        // Solo se puede eliminar si está en FREE
+        // Solo se puede inactivar si está en FREE
         if (table.getStatus() != TableStatus.FREE) {
-            throw new IllegalArgumentException("Solo se pueden eliminar mesas en estado Libre");
+            throw new IllegalArgumentException(
+                "Solo se pueden inactivar mesas en estado Libre. Estado actual: " + translateStatus(table.getStatus())
+            );
         }
 
-        tableRepository.delete(table);
+        // Validar que no esté en ninguna reserva PENDING o IN_PROGRESS
+        List<Reservation> pendingOrActiveReservations = reservationRepository.findPendingOrActiveReservationsForTable(tableId);
+        if (!pendingOrActiveReservations.isEmpty()) {
+            throw new IllegalArgumentException(
+                "No se puede inactivar esta mesa. Se encuentra en " + pendingOrActiveReservations.size() + 
+                " reserva(s) pendiente(s) o activa(s). Cancele o complete las reservas primero"
+            );
+        }
+
+        // Soft delete: cambiar estado a INACTIVE
+        table.setStatus(TableStatus.INACTIVE);
+        tableRepository.save(table);
+    }
+
+    @Transactional
+    public void reactivateTable(String userEmail, UUID businessId, UUID tableId) {
+        validateUserIsOwner(userEmail, businessId);
+
+        TableEntity table = tableRepository.findById(tableId)
+                .orElseThrow(() -> new IllegalArgumentException("Mesa no encontrada"));
+
+        if (!table.getBusiness().getId().equals(businessId)) {
+            throw new IllegalArgumentException("La mesa no pertenece a este negocio");
+        }
+
+        // Solo se puede reactivar si está INACTIVE
+        if (table.getStatus() != TableStatus.INACTIVE) {
+            throw new IllegalArgumentException(
+                "Solo se pueden reactivar mesas en estado Inactiva. Estado actual: " + translateStatus(table.getStatus())
+            );
+        }
+
+        // Reactivar: cambiar de INACTIVE a FREE
+        table.setStatus(TableStatus.FREE);
+        tableRepository.save(table);
     }
 
     @Transactional(readOnly = true)
@@ -217,10 +270,15 @@ public class TableService {
 
         List<TableEntity> tables = tableRepository.findByBusinessIdOrderByTableCodeAsc(businessId);
 
-        int total = tables.size();
-        long free = tables.stream().filter(t -> t.getStatus() == TableStatus.FREE).count();
-        long reserved = tables.stream().filter(t -> t.getStatus() == TableStatus.RESERVED).count();
-        long occupied = tables.stream().filter(t -> t.getStatus() == TableStatus.OCCUPIED).count();
+        // Filtrar solo mesas activas (excluir INACTIVE)
+        List<TableEntity> activeTables = tables.stream()
+                .filter(t -> t.getStatus() != TableStatus.INACTIVE)
+                .toList();
+
+        int total = activeTables.size();
+        long free = activeTables.stream().filter(t -> t.getStatus() == TableStatus.FREE).count();
+        long reserved = activeTables.stream().filter(t -> t.getStatus() == TableStatus.RESERVED).count();
+        long occupied = activeTables.stream().filter(t -> t.getStatus() == TableStatus.OCCUPIED).count();
 
         double occupancyRate = total > 0 ? ((double)(reserved + occupied) / total) * 100 : 0;
 
@@ -238,6 +296,13 @@ public class TableService {
         if (newStatus == TableStatus.RESERVED) {
             throw new IllegalArgumentException(
                 "No se puede cambiar manualmente a Reservada. El estado Reservada se asigna automáticamente 20 minutos antes del inicio de una reserva."
+            );
+        }
+
+        // No se puede cambiar a INACTIVE manualmente - solo por delete/inactivate
+        if (newStatus == TableStatus.INACTIVE) {
+            throw new IllegalArgumentException(
+                "No se puede cambiar manualmente a Inactiva. Use el endpoint de inactivación/eliminación de mesas."
             );
         }
 
@@ -354,6 +419,7 @@ public class TableService {
             case FREE -> "Libre";
             case RESERVED -> "Reservada";
             case OCCUPIED -> "Ocupada";
+            case INACTIVE -> "Inactiva";
         };
     }
 }

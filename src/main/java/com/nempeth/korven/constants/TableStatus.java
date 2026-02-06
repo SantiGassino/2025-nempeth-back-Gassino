@@ -3,5 +3,6 @@ package com.nempeth.korven.constants;
 public enum TableStatus {
     FREE,      // Libre
     RESERVED,  // Reservada
-    OCCUPIED   // Ocupada
+    OCCUPIED,  // Ocupada
+    INACTIVE   // Inactiva (soft delete)
 }

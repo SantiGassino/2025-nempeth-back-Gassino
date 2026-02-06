@@ -106,4 +106,16 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
         """)
     List<Reservation> findActiveReservationsForTable(
         @Param("tableId") UUID tableId);
+    
+    /**
+     * Busca reservas PENDING o IN_PROGRESS de una mesa específica
+     */
+    @Query("""
+        SELECT r FROM Reservation r 
+        JOIN r.tables t
+        WHERE t.id = :tableId 
+        AND r.status IN ('PENDING', 'IN_PROGRESS')
+        """)
+    List<Reservation> findPendingOrActiveReservationsForTable(
+        @Param("tableId") UUID tableId);
 }

@@ -69,7 +69,7 @@ public class ReservationService {
             );
         }
 
-        // Obtener todas las mesas solicitadas
+        // Obtener todas las mesas solicitadas y validar que no estén inactivas
         Set<TableEntity> tables = new HashSet<>();
         for (UUID tableId : request.tableIds()) {
             TableEntity table = tableRepository.findById(tableId)
@@ -78,7 +78,11 @@ public class ReservationService {
             if (!table.getBusiness().getId().equals(businessId)) {
                 throw new IllegalArgumentException("La mesa " + table.getTableCode() + " no pertenece a este negocio");
             }
-
+            if (table.getStatus() == TableStatus.INACTIVE) {
+                throw new IllegalArgumentException(
+                    "No se puede incluir la mesa " + table.getTableCode() + " en la reserva porque está inactiva"
+                );
+            }
             tables.add(table);
         }
 
@@ -200,6 +204,12 @@ public class ReservationService {
 
                 if (!table.getBusiness().getId().equals(businessId)) {
                     throw new IllegalArgumentException("La mesa " + table.getTableCode() + " no pertenece a este negocio");
+                }
+
+                if (table.getStatus() == TableStatus.INACTIVE) {
+                    throw new IllegalArgumentException(
+                        "No se puede incluir la mesa " + table.getTableCode() + " en la reserva porque está inactiva"
+                    );
                 }
 
                 newTables.add(table);

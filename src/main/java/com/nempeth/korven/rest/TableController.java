@@ -104,7 +104,19 @@ public class TableController {
         tableService.deleteTable(userEmail, businessId, tableId);
 
         return ResponseEntity.ok(Map.of(
-                "message", "Mesa eliminada exitosamente"
+                "message", "Mesa inactivada exitosamente"
+        ));
+    }
+
+    @PostMapping("/{tableId}/reactivate")
+    public ResponseEntity<?> reactivateTable(@PathVariable UUID businessId,
+                                             @PathVariable UUID tableId,
+                                             Authentication auth) {
+        String userEmail = auth.getName();
+        tableService.reactivateTable(userEmail, businessId, tableId);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Mesa reactivada exitosamente"
         ));
     }
 }
