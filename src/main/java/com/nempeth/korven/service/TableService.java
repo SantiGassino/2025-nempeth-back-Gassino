@@ -138,13 +138,27 @@ public class TableService {
             throw new IllegalArgumentException("La mesa no pertenece a este negocio");
         }
 
+        // VALIDACIÓN 1: Verificar si la mesa está en una reserva activa (IN_PROGRESS)
+        if (hasActiveReservation(tableId)) {
+            throw new IllegalArgumentException(
+                "No se puede cambiar el estado de esta mesa. Se encuentra en una reserva activa"
+            );
+        }
+
         // Validar transición de estado
         validateStatusTransition(table.getStatus(), newStatus);
         
-        // Si intenta cambiar a OCCUPIED, verificar que no haya reserva próxima
+        // VALIDACIÓN 2: Si intenta cambiar de RESERVED a FREE, verificar que no haya reserva próxima
+        if (table.getStatus() == TableStatus.RESERVED && newStatus == TableStatus.FREE && hasUpcomingReservation(tableId)) {
+            throw new IllegalArgumentException(
+                "No se puede liberar esta mesa manualmente. Pronto iniciará una reserva (menos de 20 minutos)"
+            );
+        }
+        
+        // VALIDACIÓN 3: Si intenta cambiar a OCCUPIED, verificar que no haya reserva próxima
         if (newStatus == TableStatus.OCCUPIED && hasUpcomingReservation(tableId)) {
             throw new IllegalArgumentException(
-                "No se puede ocupar esta mesa manualmente. Pronto iniciar\u00e1 una reserva (menos de 45 minutos)"
+                "No se puede ocupar esta mesa manualmente. Pronto iniciará una reserva (menos de 20 minutos)"
             );
         }
 
@@ -270,6 +284,14 @@ public class TableService {
         );
         
         return !upcomingReservations.isEmpty();
+    }
+    
+    /**
+     * Verifica si una mesa tiene una reserva activa en estado IN_PROGRESS
+     */
+    private boolean hasActiveReservation(UUID tableId) {
+        List<Reservation> activeReservations = reservationRepository.findActiveReservationsForTable(tableId);
+        return !activeReservations.isEmpty();
     }
 
     private TableResponse mapToResponse(TableEntity table) {

@@ -524,29 +524,67 @@ public class ReservationService {
                 .toList();
     }
 
+    /**
+     * Obtiene reservas "próximas" o actuales:
+     * - Reservas desde HOY hacia el futuro con estados: PENDING, COMPLETED, CANCELLED, NO_SHOW
+     * - Todas las reservas IN_PROGRESS sin importar la fecha (pueden estar en el pasado)
+     */
     @Transactional(readOnly = true)
     public List<ReservationResponse> getUpcomingReservations(String userEmail, UUID businessId) {
         validateUserBusinessAccess(userEmail, businessId);
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime startOfToday = OffsetDateTime.now()
+                .toLocalDate()
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toOffsetDateTime();
         List<Reservation> reservations = reservationRepository.findByBusinessIdOrderByStartDateTimeDesc(businessId);
 
         return reservations.stream()
-                .filter(r -> r.getStartDateTime().isAfter(now) || r.getStartDateTime().isEqual(now))
+                .filter(r -> {
+                    // Incluir todas las IN_PROGRESS sin importar fecha
+                    if (r.getStatus() == ReservationStatus.IN_PROGRESS) {
+                        return true;
+                    }
+                    // Incluir PENDING, COMPLETED, CANCELLED, NO_SHOW desde hoy en adelante
+                    if (r.getStartDateTime().isAfter(startOfToday) || r.getStartDateTime().isEqual(startOfToday)) {
+                        return r.getStatus() == ReservationStatus.PENDING ||
+                               r.getStatus() == ReservationStatus.COMPLETED ||
+                               r.getStatus() == ReservationStatus.CANCELLED ||
+                               r.getStatus() == ReservationStatus.NO_SHOW;
+                    }
+                    return false;
+                })
                 .sorted(Comparator.comparing(Reservation::getStartDateTime))
                 .map(this::mapToResponse)
                 .toList();
     }
 
+    /**
+     * Obtiene reservas pasadas:
+     * - Reservas desde AYER hacia atrás con estados: COMPLETED, CANCELLED, NO_SHOW
+     * - Excluye IN_PROGRESS y PENDING
+     */
     @Transactional(readOnly = true)
     public List<ReservationResponse> getPastReservations(String userEmail, UUID businessId) {
         validateUserBusinessAccess(userEmail, businessId);
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime startOfToday = OffsetDateTime.now()
+                .toLocalDate()
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toOffsetDateTime();
         List<Reservation> reservations = reservationRepository.findByBusinessIdOrderByStartDateTimeDesc(businessId);
 
         return reservations.stream()
-                .filter(r -> r.getStartDateTime().isBefore(now))
+                .filter(r -> {
+                    // Solo reservas antes de hoy
+                    if (r.getStartDateTime().isBefore(startOfToday)) {
+                        // Solo estados finalizados: COMPLETED, CANCELLED, NO_SHOW
+                        return r.getStatus() == ReservationStatus.COMPLETED ||
+                               r.getStatus() == ReservationStatus.CANCELLED ||
+                               r.getStatus() == ReservationStatus.NO_SHOW;
+                    }
+                    return false;
+                })
                 .map(this::mapToResponse)
                 .toList();
     }

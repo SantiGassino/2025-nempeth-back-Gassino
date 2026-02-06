@@ -94,4 +94,16 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
     List<Reservation> findAllUpcomingReservations(
         @Param("now") OffsetDateTime now,
         @Param("upcomingTime") OffsetDateTime upcomingTime);
+    
+    /**
+     * Busca reservas IN_PROGRESS activas de una mesa específica
+     */
+    @Query("""
+        SELECT r FROM Reservation r 
+        JOIN r.tables t
+        WHERE t.id = :tableId 
+        AND r.status = 'IN_PROGRESS'
+        """)
+    List<Reservation> findActiveReservationsForTable(
+        @Param("tableId") UUID tableId);
 }
