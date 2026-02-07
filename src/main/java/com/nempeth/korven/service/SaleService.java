@@ -23,6 +23,7 @@ public class SaleService {
     private final BusinessRepository businessRepository;
     private final BusinessMembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final TableRepository tableRepository;
 
     @Transactional
     public UUID createSale(String userEmail, UUID businessId) {
@@ -49,6 +50,58 @@ public class SaleService {
         sale = saleRepository.save(sale);
 
         return sale.getId();
+    }
+
+    @Transactional
+    public UUID createSaleForTable(UUID tableId, UUID businessId, UUID createdByUserId, String createdByUserName) {
+        TableEntity table = tableRepository.findById(tableId)
+                .orElseThrow(() -> new IllegalArgumentException("Mesa no encontrada"));
+
+        if (!table.getBusiness().getId().equals(businessId)) {
+            throw new IllegalArgumentException("La mesa no pertenece a este negocio");
+        }
+
+        // Verificar si ya existe una orden abierta para esta mesa
+        List<Sale> existingOpenSales = saleRepository.findByBusinessIdAndTableIdAndOccurredAtIsNull(businessId, tableId);
+        if (!existingOpenSales.isEmpty()) {
+            // Ya existe una orden abierta, retornar su ID
+            return existingOpenSales.get(0).getId();
+        }
+
+        Business business = table.getBusiness();
+        User createdByUser = userRepository.findById(createdByUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
+
+        // Crear la venta asociada a la mesa con el usuario que la creó
+        Sale sale = Sale.builder()
+                .business(business)
+                .table(table)
+                .createdByUser(createdByUser)
+                .createdByUserName(createdByUserName)
+                .occurredAt(null)
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+
+        sale = saleRepository.save(sale);
+
+        return sale.getId();
+    }
+
+    @Transactional
+    public void closeSalesByTable(UUID tableId) {
+        List<Sale> openSales = saleRepository.findByTableIdAndOccurredAtIsNull(tableId);
+        
+        for (Sale sale : openSales) {
+            // Recalcular el total desde los items
+            List<SaleItem> items = saleItemRepository.findBySaleId(sale.getId());
+            BigDecimal totalAmount = items.stream()
+                    .map(SaleItem::getLineTotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            sale.setOccurredAt(OffsetDateTime.now());
+            sale.setTotalAmount(totalAmount);
+            saleRepository.save(sale);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -129,6 +182,14 @@ public class SaleService {
         if (sale.getOccurredAt() != null) {
             throw new IllegalArgumentException("La venta ya está cerrada");
         }
+
+        // Validar que si tiene mesa asociada, no se puede cerrar manualmente
+        if (sale.getTable() != null) {
+            throw new IllegalArgumentException(
+                "No se puede cerrar esta orden manualmente. Está asociada a la mesa " + 
+                sale.getTable().getTableCode() + ". La orden se cerrará automáticamente cuando la mesa quede libre"
+            );
+        }
         
         // Recalcular el total desde los items
         List<SaleItem> items = saleItemRepository.findBySaleId(saleId);
@@ -187,11 +248,21 @@ public class SaleService {
                 ? sale.getCreatedByUserName()
                 : "Sistema";
 
+        // Mapear información de la mesa si existe
+        SaleTableInfo tableInfo = null;
+        if (sale.getTable() != null) {
+            tableInfo = SaleTableInfo.builder()
+                    .id(sale.getTable().getId())
+                    .tableCode(sale.getTable().getTableCode())
+                    .build();
+        }
+
         return SaleResponse.builder()
                 .id(sale.getId())
                 .occurredAt(sale.getOccurredAt())
                 .totalAmount(sale.getTotalAmount())
                 .createdByUserName(createdByUserName)
+                .table(tableInfo)
                 .items(items)
                 .build();
     }

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="2.3-add-table-to-sales" author="system">
+        <comment>Agregar relación opcional entre órdenes (sales) y mesas para tracking automático</comment>
+
+        <!-- Agregar columna table_id a la tabla sale -->
+        <addColumn tableName="sale">
+            <column name="table_id" type="uuid">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <!-- Crear foreign key hacia table -->
+        <addForeignKeyConstraint
+                baseTableName="sale"
+                baseColumnNames="table_id"
+                constraintName="fk_sale_table"
+                referencedTableName="restaurant_table"
+                referencedColumnNames="id"
+                onDelete="SET NULL"/>
+
+        <!-- Crear índice para mejorar performance en búsquedas por mesa -->
+        <createIndex indexName="ix_sale_table_open"
+                     tableName="sale">
+            <column name="table_id"/>
+            <column name="occurred_at"/>
+        </createIndex>
+
+    </changeSet>
+
+</databaseChangeLog>

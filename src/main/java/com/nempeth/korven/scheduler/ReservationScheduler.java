@@ -6,6 +6,7 @@ import com.nempeth.korven.persistence.entity.Reservation;
 import com.nempeth.korven.persistence.entity.TableEntity;
 import com.nempeth.korven.persistence.repository.ReservationRepository;
 import com.nempeth.korven.persistence.repository.TableRepository;
+import com.nempeth.korven.service.SaleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -29,6 +30,7 @@ public class ReservationScheduler {
     
     private final ReservationRepository reservationRepository;
     private final TableRepository tableRepository;
+    private final SaleService saleService;
 
     /**
      * Se ejecuta cada 5 minutos para verificar reservas próximas
@@ -105,6 +107,11 @@ public class ReservationScheduler {
                     table.getTableCode(),
                     reservation.getId(),
                     java.time.Duration.between(OffsetDateTime.now(), reservation.getStartDateTime()).toMinutes());
+                
+                // Si estaba OCCUPIED, cerrar la orden antes de pasar a RESERVED
+                if (table.getStatus() == TableStatus.OCCUPIED) {
+                    saleService.closeSalesByTable(table.getId());
+                }
                 
                 table.setStatus(TableStatus.RESERVED);
                 tableRepository.save(table);

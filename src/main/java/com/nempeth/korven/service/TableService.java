@@ -36,6 +36,7 @@ public class TableService {
     private final UserRepository userRepository;
     private final ReservationRepository reservationRepository;
     private final ReservationScheduler reservationScheduler;
+    private final SaleService saleService;
     
     private static final int RESERVATION_LOCK_MINUTES = 45;
 
@@ -135,6 +136,7 @@ public class TableService {
     @Transactional
     public void updateTableStatus(String userEmail, UUID businessId, UUID tableId, TableStatus newStatus) {
         BusinessMembership membership = validateUserBusinessAccessAndGetMembership(userEmail, businessId);
+        User user = membership.getUser();
 
         TableEntity table = tableRepository.findById(tableId)
                 .orElseThrow(() -> new IllegalArgumentException("Mesa no encontrada"));
@@ -174,8 +176,22 @@ public class TableService {
             );
         }
 
+        TableStatus previousStatus = table.getStatus();
         table.setStatus(newStatus);
         tableRepository.save(table);
+
+        // GESTIÓN DE ÓRDENES: Crear orden al pasar a OCCUPIED, cerrar al salir de OCCUPIED
+        if (newStatus == TableStatus.OCCUPIED && previousStatus != TableStatus.OCCUPIED) {
+            // La mesa pasó a OCCUPIED, crear orden automáticamente con el usuario que la ocupó
+            String userName = (user.getName() + " " + user.getLastName()).trim();
+            if (userName.isEmpty()) {
+                userName = user.getEmail();
+            }
+            saleService.createSaleForTable(tableId, businessId, user.getId(), userName);
+        } else if (previousStatus == TableStatus.OCCUPIED && newStatus != TableStatus.OCCUPIED) {
+            // La mesa salió de OCCUPIED, cerrar orden asociada
+            saleService.closeSalesByTable(tableId);
+        }
 
         // Procesar reservas de esta mesa si hay alguna próxima
         reservationScheduler.processReservationsForTable(tableId);

@@ -43,6 +43,7 @@ public class ReservationService {
     private final BusinessMembershipRepository membershipRepository;
     private final UserRepository userRepository;
     private final ReservationScheduler reservationScheduler;
+    private final SaleService saleService;
 
     private static final long MAX_RESERVATION_HOURS = 12;
 
@@ -322,6 +323,10 @@ public class ReservationService {
     @Transactional
     public void startReservation(String userEmail, UUID businessId, UUID reservationId) {
         validateUserBusinessAccess(userEmail, businessId);
+        
+        // Obtener el usuario que está iniciando la reserva
+        User user = userRepository.findByEmailIgnoreCase(userEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
 
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reserva no encontrada"));
@@ -355,10 +360,18 @@ public class ReservationService {
 
         reservation.setStatus(ReservationStatus.IN_PROGRESS);
 
-        // Marcar todas las mesas como ocupadas
+        // Construir nombre completo del usuario
+        String userName = (user.getName() + " " + user.getLastName()).trim();
+        if (userName.isEmpty()) {
+            userName = user.getEmail();
+        }
+
+        // Marcar todas las mesas como ocupadas y crear órdenes
         for (TableEntity table : reservation.getTables()) {
             table.setStatus(TableStatus.OCCUPIED);
             tableRepository.save(table);
+            // Crear orden automáticamente para cada mesa con el usuario que inició la reserva
+            saleService.createSaleForTable(table.getId(), businessId, user.getId(), userName);
         }
 
         reservationRepository.save(reservation);
@@ -381,10 +394,12 @@ public class ReservationService {
 
         reservation.setStatus(ReservationStatus.COMPLETED);
 
-        // Liberar todas las mesas
+        // Liberar todas las mesas y cerrar órdenes
         for (TableEntity table : reservation.getTables()) {
             table.setStatus(TableStatus.FREE);
             tableRepository.save(table);
+            // Cerrar orden automáticamente para cada mesa
+            saleService.closeSalesByTable(table.getId());
         }
 
         reservationRepository.save(reservation);
@@ -416,9 +431,13 @@ public class ReservationService {
 
         reservation.setStatus(ReservationStatus.CANCELLED);
 
-        // Liberar todas las mesas reservadas u ocupadas por esta reserva
+        // Liberar todas las mesas reservadas u ocupadas por esta reserva y cerrar órdenes si corresponde
         for (TableEntity table : reservation.getTables()) {
             if (table.getStatus() == TableStatus.RESERVED || table.getStatus() == TableStatus.OCCUPIED) {
+                // Si estaba OCCUPIED, cerrar la orden
+                if (table.getStatus() == TableStatus.OCCUPIED) {
+                    saleService.closeSalesByTable(table.getId());
+                }
                 table.setStatus(TableStatus.FREE);
                 tableRepository.save(table);
             }

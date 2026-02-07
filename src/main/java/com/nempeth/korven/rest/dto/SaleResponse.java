@@ -13,6 +13,7 @@ public record SaleResponse(
         OffsetDateTime occurredAt,
         BigDecimal totalAmount,
         String createdByUserName,
+        SaleTableInfo table,  // null si es orden manual, poblado si es de mesa
         List<SaleItemResponse> items
 ) {
 }
