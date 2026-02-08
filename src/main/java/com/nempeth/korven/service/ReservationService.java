@@ -101,11 +101,9 @@ public class ReservationService {
         }
 
         // VALIDACIÓN 5: No permitir overlapping en NINGUNA de las mesas (sin excepciones)
-        // Incluye buffer de 20 minutos ANTES y 5 minutos DESPUÉS para separación entre reservas
-        // - Buffer ANTES: evita que se cree una reserva justo antes de otra (tiempo de preparación)
-        // - Buffer DESPUÉS: evita que se cree una reserva justo después de otra (tiempo de limpieza)
+        // Incluye buffer de 20 minutos ANTES para separación entre reservas (tiempo de preparación)
         OffsetDateTime bufferStartTime = request.startDateTime().minusMinutes(20);
-        OffsetDateTime bufferEndTime = request.endDateTime().plusMinutes(5);
+        OffsetDateTime bufferEndTime = request.endDateTime();
         
         for (TableEntity table : tables) {
             List<Reservation> overlapping = reservationRepository.findOverlappingReservationsForTable(
@@ -117,7 +115,7 @@ public class ReservationService {
             if (!overlapping.isEmpty()) {
                 throw new IllegalArgumentException(
                         String.format("La mesa %s ya tiene reservas en conflicto para ese horario. " +
-                                        "Se requiere 20 minutos antes y 5 minutos después de separación entre reservas.",
+                                        "Se requiere un mínimo de 20 minutos de separación antes de cada reserva.",
                                 table.getTableCode())
                 );
             }
@@ -251,7 +249,7 @@ public class ReservationService {
             (request.tableIds() != null && !request.tableIds().isEmpty())) {
             
             OffsetDateTime bufferStartTime = newStart.minusMinutes(20);
-            OffsetDateTime bufferEndTime = newEnd.plusMinutes(5);
+            OffsetDateTime bufferEndTime = newEnd;
             
             for (TableEntity table : finalTables) {
                 List<Reservation> overlapping = reservationRepository.findOverlappingReservationsForTableExcluding(
@@ -264,7 +262,7 @@ public class ReservationService {
                 if (!overlapping.isEmpty()) {
                     throw new IllegalArgumentException(
                             String.format("La mesa %s ya tiene reservas en conflicto para ese horario. " +
-                                            "Se requiere 20 minutos antes y 5 minutos después de separación entre reservas.",
+                                            "Se requiere un mínimo de 20 minutos de separación antes de cada reserva.",
                                     table.getTableCode())
                     );
                 }

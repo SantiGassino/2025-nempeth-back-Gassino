@@ -202,6 +202,31 @@ public class SaleService {
         saleRepository.save(sale);
     }
 
+    @Transactional
+    public void deleteSale(String userEmail, UUID businessId, UUID saleId) {
+        validateUserBusinessAccess(userEmail, businessId);
+
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new IllegalArgumentException("Venta no encontrada"));
+
+        if (!sale.getBusiness().getId().equals(businessId)) {
+            throw new IllegalArgumentException("La venta no pertenece a este negocio");
+        }
+
+        if (sale.getOccurredAt() != null) {
+            throw new IllegalArgumentException("No se puede eliminar una venta que ya está cerrada");
+        }
+
+        if (sale.getTable() != null) {
+            throw new IllegalArgumentException(
+                "No se puede eliminar esta orden. Está asociada a la mesa " +
+                sale.getTable().getTableCode() + ". Libere la mesa primero para cerrar la orden automáticamente"
+            );
+        }
+
+        saleRepository.delete(sale);
+    }
+
     private User validateUserBusinessAccess(String userEmail, UUID businessId) {
         User user = userRepository.findByEmailIgnoreCase(userEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));

@@ -22,7 +22,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,7 +37,7 @@ public class TableService {
     private final ReservationScheduler reservationScheduler;
     private final SaleService saleService;
     
-    private static final int RESERVATION_LOCK_MINUTES = 45;
+
 
     @Transactional
     public UUID createTable(String userEmail, UUID businessId, CreateTableRequest request) {
@@ -107,13 +106,6 @@ public class TableService {
         if (table.getStatus() != TableStatus.FREE) {
             throw new IllegalArgumentException("Solo se pueden editar los datos de mesas en estado Libre");
         }
-        
-        // Verificar si hay una reserva próxima (20 min)
-        if (hasUpcomingReservation(tableId)) {
-            throw new IllegalStateException(
-                "No se puede ocupar esta mesa manualmente. Pronto iniciará una reserva (menos de 20 minutos)"
-            );
-        }
 
         if (request.tableCode() != null && !request.tableCode().equals(table.getTableCode())) {
             if (tableRepository.existsByBusinessIdAndTableCode(businessId, request.tableCode())) {
@@ -159,22 +151,15 @@ public class TableService {
             );
         }
 
+        // VALIDACIÓN 2: Si la mesa está en RESERVED y tiene una reserva PENDING o IN_PROGRESS, bloquear cambios manuales
+        if (table.getStatus() == TableStatus.RESERVED && hasPendingOrActiveReservation(tableId)) {
+            throw new IllegalArgumentException(
+                "No se puede cambiar el estado de esta mesa. Tiene una reserva pendiente o activa asociada"
+            );
+        }
+
         // Validar transición de estado
         validateStatusTransition(table.getStatus(), newStatus);
-        
-        // VALIDACIÓN 2: Si intenta cambiar de RESERVED a FREE, verificar que no haya reserva próxima
-        if (table.getStatus() == TableStatus.RESERVED && newStatus == TableStatus.FREE && hasUpcomingReservation(tableId)) {
-            throw new IllegalArgumentException(
-                "No se puede liberar esta mesa manualmente. Pronto iniciará una reserva (menos de 20 minutos)"
-            );
-        }
-        
-        // VALIDACIÓN 3: Si intenta cambiar a OCCUPIED, verificar que no haya reserva próxima
-        if (newStatus == TableStatus.OCCUPIED && hasUpcomingReservation(tableId)) {
-            throw new IllegalArgumentException(
-                "No se puede ocupar esta mesa manualmente. Pronto iniciará una reserva (menos de 20 minutos)"
-            );
-        }
 
         TableStatus previousStatus = table.getStatus();
         table.setStatus(newStatus);
@@ -354,25 +339,19 @@ public class TableService {
     }
     
     /**
-     * Verifica si una mesa tiene una reserva PENDING que inicia en los próximos 20 minutos
-     */
-    private boolean hasUpcomingReservation(UUID tableId) {
-        OffsetDateTime now = OffsetDateTime.now();
-        OffsetDateTime upcomingTime = now.plusMinutes(20);
-        
-        List<Reservation> upcomingReservations = reservationRepository.findUpcomingReservationsForTable(
-            tableId, now, upcomingTime
-        );
-        
-        return !upcomingReservations.isEmpty();
-    }
-    
-    /**
      * Verifica si una mesa tiene una reserva activa en estado IN_PROGRESS
      */
     private boolean hasActiveReservation(UUID tableId) {
         List<Reservation> activeReservations = reservationRepository.findActiveReservationsForTable(tableId);
         return !activeReservations.isEmpty();
+    }
+
+    /**
+     * Verifica si una mesa tiene alguna reserva PENDING o IN_PROGRESS asociada
+     */
+    private boolean hasPendingOrActiveReservation(UUID tableId) {
+        List<Reservation> reservations = reservationRepository.findPendingOrActiveReservationsForTable(tableId);
+        return !reservations.isEmpty();
     }
 
     private TableResponse mapToResponse(TableEntity table) {

@@ -69,6 +69,18 @@ public class SaleController {
         ));
     }
 
+    @DeleteMapping("/{saleId}")
+    public ResponseEntity<?> deleteSale(@PathVariable UUID businessId,
+                                       @PathVariable UUID saleId,
+                                       Authentication auth) {
+        String userEmail = auth.getName();
+        saleService.deleteSale(userEmail, businessId, saleId);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Venta eliminada exitosamente"
+        ));
+    }
+
     @GetMapping("/{saleId}")
     public ResponseEntity<SaleResponse> getSaleById(@PathVariable UUID businessId,
                                                    @PathVariable UUID saleId,
