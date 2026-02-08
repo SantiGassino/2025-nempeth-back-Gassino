@@ -23,17 +23,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+        
+        // Skip JWT validation for public endpoints
+        return "OPTIONS".equalsIgnoreCase(method)
+                || path.equals("/health")
+                || path.startsWith("/auth/")
+                || path.equals("/external/token");
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain)
             throws ServletException, IOException {
-
-        // Skip JWT validation for password reset endpoints
-        String path = request.getRequestURI();
-        if (path.startsWith("/auth/password/") || "OPTIONS".equals(request.getMethod())) {
-            chain.doFilter(request, response);
-            return;
-        }
 
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {

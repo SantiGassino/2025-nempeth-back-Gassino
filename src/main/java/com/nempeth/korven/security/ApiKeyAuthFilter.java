@@ -29,23 +29,20 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     private boolean apiKeyEnabled;
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+        
+        // Only apply to /external/products endpoint, skip everything else
+        return "OPTIONS".equalsIgnoreCase(method)
+                || !path.startsWith("/external/products");
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain)
             throws ServletException, IOException {
-
-        // Only apply to /external/products endpoint
-        String path = request.getRequestURI();
-        if (!path.startsWith("/external/products")) {
-            chain.doFilter(request, response);
-            return;
-        }
-
-        // Skip for OPTIONS requests
-        if ("OPTIONS".equals(request.getMethod())) {
-            chain.doFilter(request, response);
-            return;
-        }
 
         if (!apiKeyEnabled) {
             chain.doFilter(request, response);
