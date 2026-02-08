@@ -47,6 +47,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/health").permitAll()
                         .requestMatchers("/auth/register", "/auth/register/owner", "/auth/register/employee", "/auth/login", "/auth/password/forgot", "/auth/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/auth/password/validate").permitAll()
                         .requestMatchers(HttpMethod.POST, "/external/token").permitAll()
