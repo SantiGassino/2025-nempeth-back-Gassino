@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Cambios en tabla reservation para soportar múltiples mesas y rango de fechas -->
+    <changeSet id="2.1-1-drop-reservation-table-fk" author="system">
+        <dropForeignKeyConstraint baseTableName="reservation" constraintName="fk_reservation_table"/>
+        
+        <rollback>
+            <addForeignKeyConstraint
+                baseTableName="reservation"
+                baseColumnNames="table_id"
+                constraintName="fk_reservation_table"
+                referencedTableName="restaurant_table"
+                referencedColumnNames="id"
+                onDelete="RESTRICT"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2.1-2-add-datetime-columns" author="system">
+        <addColumn tableName="reservation">
+            <column name="start_datetime" type="timestamptz">
+                <constraints nullable="true"/>
+            </column>
+            <column name="end_datetime" type="timestamptz">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <rollback>
+            <dropColumn tableName="reservation" columnName="start_datetime"/>
+            <dropColumn tableName="reservation" columnName="end_datetime"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2.1-3-migrate-data" author="system">
+        <sql>
+            UPDATE reservation
+            SET start_datetime = reservation_datetime,
+                end_datetime = reservation_datetime + INTERVAL '2 hours'
+            WHERE reservation_datetime IS NOT NULL;
+        </sql>
+        
+        <rollback>
+            <sql>
+                UPDATE reservation
+                SET reservation_datetime = start_datetime
+                WHERE start_datetime IS NOT NULL;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2.1-4-set-datetime-not-null" author="system">
+        <addNotNullConstraint tableName="reservation" columnName="start_datetime" columnDataType="timestamptz"/>
+        <addNotNullConstraint tableName="reservation" columnName="end_datetime" columnDataType="timestamptz"/>
+        
+        <rollback>
+            <dropNotNullConstraint tableName="reservation" columnName="start_datetime" columnDataType="timestamptz"/>
+            <dropNotNullConstraint tableName="reservation" columnName="end_datetime" columnDataType="timestamptz"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2.1-5-drop-old-datetime-column" author="system">
+        <dropColumn tableName="reservation" columnName="reservation_datetime"/>
+        
+        <rollback>
+            <addColumn tableName="reservation">
+                <column name="reservation_datetime" type="timestamptz">
+                    <constraints nullable="false"/>
+                </column>
+            </addColumn>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2.1-6-drop-table-id-column" author="system">
+        <dropColumn tableName="reservation" columnName="table_id"/>
+        
+        <rollback>
+            <addColumn tableName="reservation">
+                <column name="table_id" type="uuid">
+                    <constraints nullable="false"/>
+                </column>
+            </addColumn>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2.1-7-drop-old-indexes" author="system">
+        <sql>DROP INDEX IF EXISTS public.ix_reservation_table_datetime</sql>
+        <sql>DROP INDEX IF EXISTS public.ix_reservation_business_datetime</sql>
+        
+        <rollback>
+            <createIndex tableName="reservation" indexName="ix_reservation_table_datetime">
+                <column name="table_id"/>
+                <column name="reservation_datetime"/>
+            </createIndex>
+            <createIndex tableName="reservation" indexName="ix_reservation_business_datetime">
+                <column name="business_id"/>
+                <column name="reservation_datetime" descending="true"/>
+            </createIndex>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="2.1-8-create-new-indexes" author="system">
+        <createIndex tableName="reservation" indexName="ix_reservation_business_datetime">
+            <column name="business_id"/>
+            <column name="start_datetime" descending="true"/>
+        </createIndex>
+        
+        <createIndex tableName="reservation" indexName="ix_reservation_start_end">
+            <column name="start_datetime"/>
+            <column name="end_datetime"/>
+        </createIndex>
+        
+        <rollback>
+            <dropIndex tableName="reservation" indexName="ix_reservation_business_datetime"/>
+            <dropIndex tableName="reservation" indexName="ix_reservation_start_end"/>
+        </rollback>
+    </changeSet>
+
+    <!-- Crear tabla de unión reservation_table para relación ManyToMany -->
+    <changeSet id="2.1-9-create-reservation-table-junction" author="system">
+        <createTable tableName="reservation_table">
+            <column name="reservation_id" type="uuid">
+                <constraints nullable="false"/>
+            </column>
+            <column name="table_id" type="uuid">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey
+            tableName="reservation_table"
+            columnNames="reservation_id, table_id"
+            constraintName="pk_reservation_table"/>
+
+        <addForeignKeyConstraint
+            baseTableName="reservation_table"
+            baseColumnNames="reservation_id"
+            constraintName="fk_res_table_reservation"
+            referencedTableName="reservation"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint
+            baseTableName="reservation_table"
+            baseColumnNames="table_id"
+            constraintName="fk_res_table_table"
+            referencedTableName="restaurant_table"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+
+        <createIndex tableName="reservation_table" indexName="ix_reservation_table_reservation_id">
+            <column name="reservation_id"/>
+        </createIndex>
+
+        <createIndex tableName="reservation_table" indexName="ix_reservation_table_table_id">
+            <column name="table_id"/>
+        </createIndex>
+        
+        <rollback>
+            <dropIndex tableName="reservation_table" indexName="ix_reservation_table_table_id"/>
+            <dropIndex tableName="reservation_table" indexName="ix_reservation_table_reservation_id"/>
+            <dropForeignKeyConstraint baseTableName="reservation_table" constraintName="fk_res_table_table"/>
+            <dropForeignKeyConstraint baseTableName="reservation_table" constraintName="fk_res_table_reservation"/>
+            <dropTable tableName="reservation_table"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

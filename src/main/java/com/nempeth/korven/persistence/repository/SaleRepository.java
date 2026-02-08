@@ -110,4 +110,9 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+    
+    // Métodos para mesas
+    List<Sale> findByTableIdAndOccurredAtIsNull(UUID tableId);
+    
+    List<Sale> findByBusinessIdAndTableIdAndOccurredAtIsNull(UUID businessId, UUID tableId);
 }

@@ -32,6 +32,11 @@ public class Sale {
                 foreignKey = @ForeignKey(name = "fk_sale_user"))
     private User createdByUser;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "table_id",
+                foreignKey = @ForeignKey(name = "fk_sale_table"))
+    private TableEntity table;
+
     @Column(name = "created_by_user_name", columnDefinition = "text")
     private String createdByUserName;
 

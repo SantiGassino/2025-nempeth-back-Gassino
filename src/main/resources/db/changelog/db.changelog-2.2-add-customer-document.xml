@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Agregar campo customer_document para identificación única de clientes -->
+    <changeSet id="2.2-1-add-customer-document-column" author="system">
+        <addColumn tableName="reservation">
+            <column name="customer_document" type="text">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        
+        <rollback>
+            <dropColumn tableName="reservation" columnName="customer_document"/>
+        </rollback>
+    </changeSet>
+
+    <!-- Migrar datos existentes: asignar documentos incrementales desde 0 -->
+    <changeSet id="2.2-2-migrate-existing-documents" author="system">
+        <sql>
+            WITH numbered_reservations AS (
+                SELECT id, ROW_NUMBER() OVER (ORDER BY created_at, id) - 1 as doc_number
+                FROM reservation
+                WHERE customer_document IS NULL
+            )
+            UPDATE reservation
+            SET customer_document = CAST(numbered_reservations.doc_number AS TEXT)
+            FROM numbered_reservations
+            WHERE reservation.id = numbered_reservations.id;
+        </sql>
+        
+        <rollback>
+            <sql>
+                UPDATE reservation
+                SET customer_document = NULL
+                WHERE customer_document ~ '^\d+$';
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- Hacer el campo obligatorio después de la migración -->
+    <changeSet id="2.2-3-set-document-not-null" author="system">
+        <addNotNullConstraint tableName="reservation" 
+                              columnName="customer_document" 
+                              columnDataType="text"/>
+        
+        <rollback>
+            <dropNotNullConstraint tableName="reservation" 
+                                  columnName="customer_document" 
+                                  columnDataType="text"/>
+        </rollback>
+    </changeSet>
+
+    <!-- Crear índice para búsquedas por documento -->
+    <changeSet id="2.2-4-create-document-index" author="system">
+        <createIndex tableName="reservation" indexName="ix_reservation_customer_document">
+            <column name="customer_document"/>
+        </createIndex>
+        
+        <rollback>
+            <dropIndex tableName="reservation" indexName="ix_reservation_customer_document"/>
+        </rollback>
+    </changeSet>
+
+    <!-- Crear índice compuesto para análisis por negocio y documento -->
+    <changeSet id="2.2-5-create-business-document-index" author="system">
+        <createIndex tableName="reservation" indexName="ix_reservation_business_document">
+            <column name="business_id"/>
+            <column name="customer_document"/>
+        </createIndex>
+        
+        <rollback>
+            <dropIndex tableName="reservation" indexName="ix_reservation_business_document"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
