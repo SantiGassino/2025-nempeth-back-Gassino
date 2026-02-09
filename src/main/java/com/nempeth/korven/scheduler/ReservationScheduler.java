@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Scheduler que automáticamente cambia el estado de las mesas a RESERVED
@@ -51,6 +52,47 @@ public class ReservationScheduler {
                 processReservationTables(reservation);
             }
         }
+    }
+
+    /**
+     * Sincronización completa de estados de mesas:
+     * 1. Marca como RESERVED las mesas con reservas próximas (< 20 min)
+     * 2. Libera mesas RESERVED que ya no tienen reservas próximas asociadas
+     * 
+     * Este método es público para poder ser llamado desde el endpoint de sincronización manual.
+     */
+    @Transactional
+    public void syncTableStatuses() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime upcomingTime = now.plusMinutes(RESERVATION_LOCK_MINUTES);
+        
+        // 1. Obtener todas las reservas próximas (< 20 min)
+        List<Reservation> upcomingReservations = reservationRepository.findAllUpcomingReservations(now, upcomingTime);
+        
+        // 2. Construir set de IDs de mesas que DEBERÍAN estar en RESERVED
+        Set<UUID> tablesShouldBeReserved = new java.util.HashSet<>();
+        for (Reservation reservation : upcomingReservations) {
+            for (TableEntity table : reservation.getTables()) {
+                tablesShouldBeReserved.add(table.getId());
+            }
+        }
+        
+        // 3. Marcar como RESERVED las mesas que deberían estarlo
+        for (Reservation reservation : upcomingReservations) {
+            processReservationTables(reservation);
+        }
+        
+        // 4. Liberar mesas que están RESERVED pero NO deberían estarlo
+        List<TableEntity> allReservedTables = tableRepository.findByStatus(TableStatus.RESERVED);
+        for (TableEntity table : allReservedTables) {
+            if (!tablesShouldBeReserved.contains(table.getId())) {
+                log.info("Liberando mesa {} que estaba RESERVED sin reserva próxima", table.getTableCode());
+                table.setStatus(TableStatus.FREE);
+                tableRepository.save(table);
+            }
+        }
+        
+        log.info("Sincronización completada: {} mesas deberían estar RESERVED", tablesShouldBeReserved.size());
     }
 
     /**

@@ -5,6 +5,7 @@ import com.nempeth.korven.rest.dto.ReservationResponse;
 import com.nempeth.korven.rest.dto.UpdateReservationRequest;
 import com.nempeth.korven.rest.dto.TableGanttResponse;
 import com.nempeth.korven.rest.dto.ReservationAnalyticsResponse;
+import com.nempeth.korven.scheduler.ReservationScheduler;
 import com.nempeth.korven.service.ReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import java.util.UUID;
 public class ReservationController {
 
     private final ReservationService reservationService;
+    private final ReservationScheduler reservationScheduler;
 
     @PostMapping
     public ResponseEntity<?> createReservation(@PathVariable UUID businessId,
@@ -161,6 +163,28 @@ public class ReservationController {
 
         return ResponseEntity.ok(Map.of(
                 "message", "Reserva marcada como no-show"
+        ));
+    }
+
+    /**
+     * Ejecuta manualmente la sincronización de estados de mesas.
+     * Útil para no tener que esperar los 5 minutos del scheduler automático.
+     * 
+     * Este endpoint:
+     * - Marca como RESERVED las mesas con reservas próximas (< 20 min)
+     * - Libera mesas RESERVED que ya no tienen reservas próximas asociadas
+     */
+    @PostMapping("/sync")
+    public ResponseEntity<?> syncReservationStatuses(@PathVariable UUID businessId,
+                                                      Authentication auth) {
+        // Solo validamos que el usuario tenga acceso al negocio
+        reservationService.getReservations(auth.getName(), businessId, null, null);
+        
+        // Ejecutar sincronización completa de estados
+        reservationScheduler.syncTableStatuses();
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Estados de mesas sincronizados exitosamente"
         ));
     }
 }

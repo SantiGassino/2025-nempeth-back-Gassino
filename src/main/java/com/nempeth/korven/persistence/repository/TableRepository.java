@@ -21,4 +21,6 @@ public interface TableRepository extends JpaRepository<TableEntity, UUID> {
     @Query("SELECT t FROM TableEntity t WHERE t.business.id = :businessId AND t.status = :status")
     List<TableEntity> findByBusinessIdAndStatus(@Param("businessId") UUID businessId,
                                                 @Param("status") TableStatus status);
+    
+    List<TableEntity> findByStatus(TableStatus status);
 }

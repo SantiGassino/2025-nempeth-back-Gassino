@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -288,6 +289,25 @@ public class ReservationService {
 
         // Aplicar cambios de fechas
         if (request.startDateTime() != null || request.endDateTime() != null) {
+            // IMPORTANTE: Si la reserva se mueve fuera de los próximos 20 minutos,
+            // las mesas que estaban RESERVED deben liberarse
+            OffsetDateTime now = OffsetDateTime.now();
+            OffsetDateTime upcomingThreshold = now.plusMinutes(20);
+            
+            boolean wasWithinThreshold = reservation.getStartDateTime().isAfter(now) && 
+                                          reservation.getStartDateTime().isBefore(upcomingThreshold);
+            boolean isNowWithinThreshold = newStart.isAfter(now) && newStart.isBefore(upcomingThreshold);
+            
+            // Si la reserva estaba dentro del umbral y ahora NO está, liberar mesas
+            if (wasWithinThreshold && !isNowWithinThreshold) {
+                for (TableEntity table : finalTables) {
+                    if (table.getStatus() == TableStatus.RESERVED) {
+                        table.setStatus(TableStatus.FREE);
+                        tableRepository.save(table);
+                    }
+                }
+            }
+            
             reservation.setStartDateTime(newStart);
             reservation.setEndDateTime(newEnd);
         }
@@ -721,8 +741,10 @@ public class ReservationService {
                 .toList();
 
         // 4. ANÁLISIS POR FRANJA HORARIA
+        // Convertir a hora local de Argentina para que las estadísticas reflejen la hora real de las reservas
+        ZoneId argentinaZone = ZoneId.of("America/Argentina/Buenos_Aires");
         Map<Integer, List<Reservation>> reservationsByHour = allReservations.stream()
-                .collect(Collectors.groupingBy(r -> r.getStartDateTime().getHour()));
+                .collect(Collectors.groupingBy(r -> r.getStartDateTime().atZoneSameInstant(argentinaZone).getHour()));
 
         List<ReservationAnalyticsResponse.TimeSlotAnalysis> timeSlotAnalysis = reservationsByHour.entrySet().stream()
                 .map(entry -> {
