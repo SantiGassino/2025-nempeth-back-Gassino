@@ -65,7 +65,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(List.of("https://korven-web-c21b9b7375ff.herokuapp.com",
-                "https://korven-app-uv686.ondigitalocean.app",
+                "https://korven-app-vxjtp.ondigitalocean.app",
                 "https://korven.com.ar",
                 "http://localhost:5173"));
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
