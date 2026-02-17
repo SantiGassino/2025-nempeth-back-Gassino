@@ -46,6 +46,9 @@ public class Sale {
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
+    @Column(name = "code", nullable = false, unique = true, length = 15)
+    private String code;
+
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<SaleItem> saleItems;
 

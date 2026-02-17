@@ -115,4 +115,13 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
     List<Sale> findByTableIdAndOccurredAtIsNull(UUID tableId);
     
     List<Sale> findByBusinessIdAndTableIdAndOccurredAtIsNull(UUID businessId, UUID tableId);
+
+    @Query(value = """
+        SELECT COALESCE(MAX(
+            CAST(SPLIT_PART(s.code, '-', 2) AS INTEGER)
+        ), 0) + 1
+        FROM sale s
+        WHERE s.code LIKE :datePrefix || '-%'
+        """, nativeQuery = true)
+    Long findNextSequenceForDate(@Param("datePrefix") String datePrefix);
 }

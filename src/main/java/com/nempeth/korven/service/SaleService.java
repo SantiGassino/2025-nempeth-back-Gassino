@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,6 +40,9 @@ public class SaleService {
             userName = user.getEmail();
         }
 
+        // Generar código único
+        String code = generateSaleCode();
+
         // Crear la venta vacía
         Sale sale = Sale.builder()
                 .business(business)
@@ -45,6 +50,7 @@ public class SaleService {
                 .createdByUserName(userName)
                 .occurredAt(null)
                 .totalAmount(BigDecimal.ZERO)
+                .code(code)
                 .build();
 
         sale = saleRepository.save(sale);
@@ -72,6 +78,9 @@ public class SaleService {
         User createdByUser = userRepository.findById(createdByUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
 
+        // Generar código único
+        String code = generateSaleCode();
+
         // Crear la venta asociada a la mesa con el usuario que la creó
         Sale sale = Sale.builder()
                 .business(business)
@@ -80,6 +89,7 @@ public class SaleService {
                 .createdByUserName(createdByUserName)
                 .occurredAt(null)
                 .totalAmount(BigDecimal.ZERO)
+                .code(code)
                 .build();
 
         sale = saleRepository.save(sale);
@@ -284,11 +294,18 @@ public class SaleService {
 
         return SaleResponse.builder()
                 .id(sale.getId())
+                .code(sale.getCode())
                 .occurredAt(sale.getOccurredAt())
                 .totalAmount(sale.getTotalAmount())
                 .createdByUserName(createdByUserName)
                 .table(tableInfo)
                 .items(items)
                 .build();
+    }
+
+    private String generateSaleCode() {
+        String datePrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
+        Long nextSeq = saleRepository.findNextSequenceForDate(datePrefix);
+        return datePrefix + "-" + nextSeq;
     }
 }

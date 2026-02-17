@@ -28,9 +28,13 @@ public class SaleController {
         String userEmail = auth.getName();
         UUID saleId = saleService.createSale(userEmail, businessId);
         
+        // Obtener la sale recién creada para retornar el code
+        SaleResponse sale = saleService.getSaleById(userEmail, businessId, saleId);
+        
         return ResponseEntity.ok(Map.of(
                 "message", "Venta creada exitosamente",
-                "saleId", saleId.toString()
+                "saleId", saleId.toString(),
+                "code", sale.code()
         ));
     }
 

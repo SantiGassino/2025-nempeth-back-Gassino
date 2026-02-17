@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="2.4-add-sale-code-column" author="system">
+        <comment>Agregar columna code a sale para identificación legible (formato YYMMDD-N)</comment>
+
+        <!-- 1. Agregar columna code nullable -->
+        <addColumn tableName="sale">
+            <column name="code" type="varchar(15)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="2.4-backfill-sale-codes" author="system">
+        <comment>Poblar codes para sales existentes usando occurred_at o fecha actual para órdenes abiertas</comment>
+
+        <sql>
+            UPDATE sale
+            SET code = sub.generated_code
+            FROM (
+                SELECT
+                    id,
+                    TO_CHAR(COALESCE(occurred_at, NOW()), 'YYMMDD') || '-' ||
+                    ROW_NUMBER() OVER (
+                        PARTITION BY TO_CHAR(COALESCE(occurred_at, NOW()), 'YYMMDD')
+                        ORDER BY COALESCE(occurred_at, NOW()), id
+                    ) AS generated_code
+                FROM sale
+            ) AS sub
+            WHERE sale.id = sub.id;
+        </sql>
+    </changeSet>
+
+    <changeSet id="2.4-sale-code-not-null-unique" author="system">
+        <comment>Hacer code NOT NULL y UNIQUE después del backfill</comment>
+
+        <addNotNullConstraint tableName="sale" columnName="code" columnDataType="varchar(15)"/>
+
+        <addUniqueConstraint tableName="sale" columnNames="code" constraintName="uq_sale_code"/>
+
+        <createIndex indexName="ix_sale_code" tableName="sale">
+            <column name="code"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
