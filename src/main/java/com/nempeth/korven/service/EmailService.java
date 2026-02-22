@@ -35,10 +35,11 @@ public class EmailService {
                     .replace("${RESET_LINK}", resetLink);
 
             helper.setText(html, true);
-            mailSender.send(message);
 
             ClassPathResource logo = new ClassPathResource("assets/logo-korven.png");
             helper.addInline("logoKorven", logo, "image/png");
+
+            mailSender.send(message);
         } catch (Exception e) {
             log.error("No se pudo enviar el email de reset a {}", to, e);
             // En ambientes sin SMTP, al menos logueamos el link
