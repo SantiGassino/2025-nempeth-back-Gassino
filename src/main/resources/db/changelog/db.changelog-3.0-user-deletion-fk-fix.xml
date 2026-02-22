@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+           http://www.liquibase.org/xml/ns/dbchangelog
+           http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.23.xsd">
+
+    <!-- Fix FK constraints to allow user deletion without breaking sale/reservation references -->
+    <changeSet id="300-fix-sale-user-fk-on-delete" author="korven">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fk_sale_user" foreignKeyTableName="sale"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="sale" constraintName="fk_sale_user"/>
+        <addForeignKeyConstraint baseTableName="sale"
+                                 baseColumnNames="created_by_user_id"
+                                 constraintName="fk_sale_user"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="SET NULL"/>
+    </changeSet>
+
+    <changeSet id="301-fix-reservation-user-fk-on-delete" author="korven">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="fk_reservation_user" foreignKeyTableName="reservation"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="reservation" constraintName="fk_reservation_user"/>
+        <addForeignKeyConstraint baseTableName="reservation"
+                                 baseColumnNames="created_by_user_id"
+                                 constraintName="fk_reservation_user"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 onDelete="SET NULL"/>
+    </changeSet>
+
+</databaseChangeLog>

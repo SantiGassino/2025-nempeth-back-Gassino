@@ -5,6 +5,9 @@ import com.nempeth.korven.constants.MembershipStatus;
 import com.nempeth.korven.persistence.entity.BusinessMembership;
 import com.nempeth.korven.persistence.entity.User;
 import com.nempeth.korven.persistence.repository.BusinessMembershipRepository;
+import com.nempeth.korven.persistence.repository.BusinessRepository;
+import com.nempeth.korven.persistence.repository.ReservationRepository;
+import com.nempeth.korven.persistence.repository.SaleRepository;
 import com.nempeth.korven.persistence.repository.UserRepository;
 import com.nempeth.korven.rest.dto.BusinessMembershipResponse;
 import com.nempeth.korven.rest.dto.UpdateMembershipRoleRequest;
@@ -18,6 +21,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -28,6 +32,10 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final BusinessMembershipRepository membershipRepository;
+    private final BusinessRepository businessRepository;
+    private final SaleRepository saleRepository;
+    private final ReservationRepository reservationRepository;
+    private final EntityManager entityManager;
 
     private static final Pattern EMAIL_RX =
             Pattern.compile("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$", Pattern.CASE_INSENSITIVE);
@@ -95,6 +103,63 @@ public class UserService {
         if (!target.getEmail().equalsIgnoreCase(requesterEmail)) {
             throw new AccessDeniedException("No autorizado para borrar este usuario");
         }
+
+        List<BusinessMembership> memberships = membershipRepository.findByUserId(userId);
+
+        // Buscar si el usuario es OWNER de algún negocio
+        List<BusinessMembership> ownerMemberships = memberships.stream()
+                .filter(m -> m.getRole() == MembershipRole.OWNER)
+                .toList();
+
+        if (!ownerMemberships.isEmpty()) {
+            // --- Flujo OWNER: eliminar negocio completo + empleados ---
+            for (BusinessMembership ownerMembership : ownerMemberships) {
+                UUID businessId = ownerMembership.getBusiness().getId();
+
+                // Eliminar los Users de todos los empleados del negocio
+                List<BusinessMembership> employeeMemberships = membershipRepository.findByBusinessId(businessId)
+                        .stream()
+                        .filter(m -> !m.getUser().getId().equals(userId))
+                        .toList();
+
+                for (BusinessMembership empMembership : employeeMemberships) {
+                    UUID empUserId = empMembership.getUser().getId();
+                    // Nullificar FKs del empleado antes de eliminarlo
+                    saleRepository.nullifyCreatedByUser(empUserId);
+                    reservationRepository.nullifyCreatedByUser(empUserId);
+                    userRepository.delete(empMembership.getUser());
+                }
+
+                // Eliminar la membresía del OWNER antes de borrar el Business
+                // (evita que Hibernate intente setear business_id=NULL en la membresía)
+                membershipRepository.delete(ownerMembership);
+
+                // Flush + clear: forzar sync con DB y limpiar contexto de Hibernate
+                // para que no intente manejar entidades stale (sales, etc.)
+                entityManager.flush();
+                entityManager.clear();
+
+                // Eliminar el Business (DB CASCADE elimina: categorías, productos, ventas,
+                // sale_items, mesas, reservas, goals, goal_category_targets)
+                businessRepository.deleteById(businessId);
+            }
+
+            // Re-obtener el usuario porque el clear() desasoció todas las entidades
+            target = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
+        } else {
+            // --- Flujo EMPLOYEE: verificar órdenes abiertas y limpiar refs ---
+            if (saleRepository.existsByCreatedByUserIdAndOccurredAtIsNull(userId)) {
+                throw new IllegalArgumentException(
+                        "Debe cerrar sus órdenes abiertas antes de eliminar su usuario");
+            }
+
+            // Nullificar FK en ventas y reservas (el nombre queda en created_by_user_name)
+            saleRepository.nullifyCreatedByUser(userId);
+            reservationRepository.nullifyCreatedByUser(userId);
+        }
+
+        // Eliminar el usuario (DB CASCADE elimina: business_membership, password_reset_token)
         userRepository.delete(target);
     }
 

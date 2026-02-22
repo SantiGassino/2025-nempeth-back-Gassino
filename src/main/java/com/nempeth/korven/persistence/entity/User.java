@@ -35,7 +35,7 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<BusinessMembership> businessMemberships;
 
-    @OneToMany(mappedBy = "createdByUser", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "createdByUser", fetch = FetchType.LAZY)
     private Set<Sale> createdSales;
 
     @PrePersist

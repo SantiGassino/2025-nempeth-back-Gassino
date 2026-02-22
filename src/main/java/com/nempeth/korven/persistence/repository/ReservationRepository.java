@@ -3,6 +3,7 @@ package com.nempeth.korven.persistence.repository;
 import com.nempeth.korven.constants.ReservationStatus;
 import com.nempeth.korven.persistence.entity.Reservation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -118,4 +119,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
         """)
     List<Reservation> findPendingOrActiveReservationsForTable(
         @Param("tableId") UUID tableId);
+
+    @Modifying
+    @Query("UPDATE Reservation r SET r.createdByUser = NULL WHERE r.createdByUser.id = :userId")
+    void nullifyCreatedByUser(@Param("userId") UUID userId);
 }

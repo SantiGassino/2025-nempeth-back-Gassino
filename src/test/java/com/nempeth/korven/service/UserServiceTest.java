@@ -6,6 +6,9 @@ import com.nempeth.korven.persistence.entity.Business;
 import com.nempeth.korven.persistence.entity.BusinessMembership;
 import com.nempeth.korven.persistence.entity.User;
 import com.nempeth.korven.persistence.repository.BusinessMembershipRepository;
+import com.nempeth.korven.persistence.repository.BusinessRepository;
+import com.nempeth.korven.persistence.repository.ReservationRepository;
+import com.nempeth.korven.persistence.repository.SaleRepository;
 import com.nempeth.korven.persistence.repository.UserRepository;
 import com.nempeth.korven.rest.dto.UpdateMembershipRoleRequest;
 import com.nempeth.korven.rest.dto.UpdateMembershipStatusRequest;
@@ -20,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import jakarta.persistence.EntityManager;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
@@ -40,6 +45,18 @@ class UserServiceTest {
 
     @Mock
     private BusinessMembershipRepository membershipRepository;
+
+    @Mock
+    private BusinessRepository businessRepository;
+
+    @Mock
+    private SaleRepository saleRepository;
+
+    @Mock
+    private ReservationRepository reservationRepository;
+
+    @Mock
+    private EntityManager entityManager;
 
     @InjectMocks
     private UserService userService;
@@ -347,13 +364,89 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("Should delete user successfully")
-    void shouldDeleteUserSuccessfully() {
+    @DisplayName("Should delete EMPLOYEE user when no open orders")
+    void shouldDeleteEmployeeWhenNoOpenOrders() {
+        testMembership.setRole(MembershipRole.EMPLOYEE);
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
-        doNothing().when(userRepository).delete(testUser);
+        when(membershipRepository.findByUserId(userId)).thenReturn(List.of(testMembership));
+        when(saleRepository.existsByCreatedByUserIdAndOccurredAtIsNull(userId)).thenReturn(false);
 
         userService.deleteUser(userId, "test@example.com");
 
+        verify(saleRepository).nullifyCreatedByUser(userId);
+        verify(reservationRepository).nullifyCreatedByUser(userId);
+        verify(userRepository).delete(testUser);
+        verify(businessRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when EMPLOYEE has open orders")
+    void shouldThrowWhenEmployeeHasOpenOrders() {
+        testMembership.setRole(MembershipRole.EMPLOYEE);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByUserId(userId)).thenReturn(List.of(testMembership));
+        when(saleRepository.existsByCreatedByUserIdAndOccurredAtIsNull(userId)).thenReturn(true);
+
+        assertThatThrownBy(() -> userService.deleteUser(userId, "test@example.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Debe cerrar sus órdenes abiertas antes de eliminar su usuario");
+
+        verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("Should delete OWNER and cascade delete business and employees")
+    void shouldDeleteOwnerAndCascadeDeleteBusinessAndEmployees() {
+        testMembership.setRole(MembershipRole.OWNER);
+
+        UUID empUserId = UUID.randomUUID();
+        User empUser = User.builder()
+                .id(empUserId)
+                .email("employee@example.com")
+                .name("Employee")
+                .lastName("User")
+                .passwordHash("hash")
+                .build();
+
+        BusinessMembership empMembership = BusinessMembership.builder()
+                .id(UUID.randomUUID())
+                .business(testBusiness)
+                .user(empUser)
+                .role(MembershipRole.EMPLOYEE)
+                .status(MembershipStatus.ACTIVE)
+                .build();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByUserId(userId)).thenReturn(List.of(testMembership));
+        when(membershipRepository.findByBusinessId(businessId)).thenReturn(List.of(testMembership, empMembership));
+
+        userService.deleteUser(userId, "test@example.com");
+
+        // Employee FK refs nullified and user deleted
+        verify(saleRepository).nullifyCreatedByUser(empUserId);
+        verify(reservationRepository).nullifyCreatedByUser(empUserId);
+        verify(userRepository).delete(empUser);
+        // Owner membership deleted before business
+        verify(membershipRepository).delete(testMembership);
+        // Business deleted
+        verify(businessRepository).deleteById(businessId);
+        // Owner deleted
+        verify(userRepository).delete(testUser);
+    }
+
+    @Test
+    @DisplayName("Should delete OWNER with no employees")
+    void shouldDeleteOwnerWithNoEmployees() {
+        testMembership.setRole(MembershipRole.OWNER);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(membershipRepository.findByUserId(userId)).thenReturn(List.of(testMembership));
+        when(membershipRepository.findByBusinessId(businessId)).thenReturn(List.of(testMembership));
+
+        userService.deleteUser(userId, "test@example.com");
+
+        verify(membershipRepository).delete(testMembership);
+        verify(businessRepository).deleteById(businessId);
         verify(userRepository).delete(testUser);
     }
 

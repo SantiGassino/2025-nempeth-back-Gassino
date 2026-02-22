@@ -2,6 +2,7 @@ package com.nempeth.korven.persistence.repository;
 
 import com.nempeth.korven.persistence.entity.Sale;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -124,4 +125,10 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
         WHERE s.code LIKE :datePrefix || '-%'
         """, nativeQuery = true)
     Long findNextSequenceForDate(@Param("datePrefix") String datePrefix);
+
+    boolean existsByCreatedByUserIdAndOccurredAtIsNull(UUID userId);
+
+    @Modifying
+    @Query("UPDATE Sale s SET s.createdByUser = NULL WHERE s.createdByUser.id = :userId")
+    void nullifyCreatedByUser(@Param("userId") UUID userId);
 }

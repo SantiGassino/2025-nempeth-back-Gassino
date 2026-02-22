@@ -19,4 +19,5 @@
   <include file="db/changelog/db.changelog-2.2-add-customer-document.xml"/>
   <include file="db/changelog/db.changelog-2.3-add-table-to-sales.xml"/>
   <include file="db/changelog/db.changelog-2.4-sale-code.xml"/>
+  <include file="db/changelog/db.changelog-3.0-user-deletion-fk-fix.xml"/>
 </databaseChangeLog>
