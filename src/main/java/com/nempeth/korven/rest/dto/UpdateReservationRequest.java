@@ -16,5 +16,6 @@ public record UpdateReservationRequest(
     List<UUID> tableIds,
     OffsetDateTime startDateTime,
     OffsetDateTime endDateTime,
+    Boolean forced,
     String notes
 ) {}

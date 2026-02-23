@@ -224,10 +224,13 @@ public class ReservationService {
         // Determinar partySize final
         int finalPartySize = request.partySize() != null ? request.partySize() : reservation.getPartySize();
 
+        // Determinar si se fuerza la capacidad (prioridad: request > valor guardado)
+        boolean isForced = request.forced() != null ? request.forced() : reservation.getForced();
+
         // VALIDACIÓN DE CAPACIDAD: Si cambian mesas o partySize, verificar que la capacidad sea suficiente
         if (request.tableIds() != null || request.partySize() != null) {
             int totalCapacity = finalTables.stream().mapToInt(TableEntity::getCapacity).sum();
-            if (!reservation.getForced() && finalPartySize > totalCapacity) {
+            if (!isForced && finalPartySize > totalCapacity) {
                 String tableCodes = finalTables.stream()
                         .map(TableEntity::getTableCode)
                         .collect(Collectors.joining(", "));
@@ -344,6 +347,10 @@ public class ReservationService {
 
         if (request.partySize() != null) {
             reservation.setPartySize(request.partySize());
+        }
+
+        if (request.forced() != null) {
+            reservation.setForced(request.forced());
         }
 
         if (request.notes() != null) {
