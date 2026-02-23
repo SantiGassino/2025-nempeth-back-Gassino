@@ -221,6 +221,24 @@ public class ReservationService {
         OffsetDateTime newStart = request.startDateTime() != null ? request.startDateTime() : reservation.getStartDateTime();
         OffsetDateTime newEnd = request.endDateTime() != null ? request.endDateTime() : reservation.getEndDateTime();
 
+        // Determinar partySize final
+        int finalPartySize = request.partySize() != null ? request.partySize() : reservation.getPartySize();
+
+        // VALIDACIÓN DE CAPACIDAD: Si cambian mesas o partySize, verificar que la capacidad sea suficiente
+        if (request.tableIds() != null || request.partySize() != null) {
+            int totalCapacity = finalTables.stream().mapToInt(TableEntity::getCapacity).sum();
+            if (!reservation.getForced() && finalPartySize > totalCapacity) {
+                String tableCodes = finalTables.stream()
+                        .map(TableEntity::getTableCode)
+                        .collect(Collectors.joining(", "));
+                throw new IllegalArgumentException(
+                        String.format("La capacidad total de las mesas [%s] es %d personas, no suficiente para %d. " +
+                                        "Aplique la opcion de forzar si desea continuar con esa capacidad.",
+                                tableCodes, totalCapacity, finalPartySize)
+                );
+            }
+        }
+
         // Validar cambios de fechas
         if (request.startDateTime() != null || request.endDateTime() != null) {
             // Validar que no estén en el pasado
@@ -418,6 +436,8 @@ public class ReservationService {
             tableRepository.save(table);
             // Cerrar orden automáticamente para cada mesa
             saleService.closeSalesByTable(table.getId());
+            // Re-evaluar si la mesa debería pasar a RESERVED por otra reserva próxima
+            reservationScheduler.processReservationsForTable(table.getId());
         }
 
         reservationRepository.save(reservation);
@@ -434,8 +454,8 @@ public class ReservationService {
             throw new IllegalArgumentException("La reserva no pertenece a este negocio");
         }
 
-        if (reservation.getStatus() == ReservationStatus.COMPLETED) {
-            throw new IllegalArgumentException("No se puede cancelar una reserva completada");
+        if (reservation.getStatus() != ReservationStatus.PENDING && reservation.getStatus() != ReservationStatus.IN_PROGRESS) {
+            throw new IllegalArgumentException("Solo se pueden cancelar reservas pendientes o en curso");
         }
 
         // Validar que no haya pasado la hora de finalización (después de eso, no se puede cambiar el estado)

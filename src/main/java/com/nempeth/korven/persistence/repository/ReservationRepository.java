@@ -120,6 +120,22 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
     List<Reservation> findPendingOrActiveReservationsForTable(
         @Param("tableId") UUID tableId);
 
+    /**
+     * Busca la próxima reserva PENDING de una mesa específica (la más cercana en el futuro)
+     */
+    @Query("""
+        SELECT r FROM Reservation r 
+        JOIN r.tables t
+        WHERE t.id = :tableId 
+        AND r.status = 'PENDING'
+        AND r.startDateTime > :now
+        ORDER BY r.startDateTime ASC
+        LIMIT 1
+        """)
+    java.util.Optional<Reservation> findNextPendingReservationForTable(
+        @Param("tableId") UUID tableId,
+        @Param("now") OffsetDateTime now);
+
     @Modifying
     @Query("UPDATE Reservation r SET r.createdByUser = NULL WHERE r.createdByUser.id = :userId")
     void nullifyCreatedByUser(@Param("userId") UUID userId);

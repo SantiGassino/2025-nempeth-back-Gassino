@@ -17,6 +17,7 @@ import com.nempeth.korven.rest.dto.CreateTableRequest;
 import com.nempeth.korven.rest.dto.TableOccupancyStatsResponse;
 import com.nempeth.korven.rest.dto.TableResponse;
 import com.nempeth.korven.rest.dto.UpdateTableRequest;
+import com.nempeth.korven.rest.dto.UpcomingReservationInfo;
 import com.nempeth.korven.scheduler.ReservationScheduler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -355,12 +356,23 @@ public class TableService {
     }
 
     private TableResponse mapToResponse(TableEntity table) {
+        UpcomingReservationInfo upcomingReservation = reservationRepository
+                .findNextPendingReservationForTable(table.getId(), java.time.OffsetDateTime.now())
+                .map(r -> new UpcomingReservationInfo(
+                        r.getId(),
+                        r.getCustomerName(),
+                        r.getStartDateTime(),
+                        java.time.Duration.between(java.time.OffsetDateTime.now(), r.getStartDateTime()).toMinutes()
+                ))
+                .orElse(null);
+
         return new TableResponse(
                 table.getId(),
                 table.getTableCode(),
                 table.getCapacity(),
                 table.getSector(),
-                table.getStatus()
+                table.getStatus(),
+                upcomingReservation
         );
     }
 

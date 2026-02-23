@@ -9,5 +9,6 @@ public record TableResponse(
     String tableCode,
     Integer capacity,
     String sector,
-    TableStatus status
+    TableStatus status,
+    UpcomingReservationInfo upcomingReservation
 ) {}

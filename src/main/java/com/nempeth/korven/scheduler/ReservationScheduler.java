@@ -187,9 +187,9 @@ public class ReservationScheduler {
                 reservation.setStatus(ReservationStatus.NO_SHOW);
                 reservationRepository.save(reservation);
                 
-                // Liberar las mesas
+                // Liberar solo mesas RESERVED (no tocar OCCUPIED que pueden pertenecer a otra operación)
                 for (TableEntity table : reservation.getTables()) {
-                    if (table.getStatus() != TableStatus.FREE) {
+                    if (table.getStatus() == TableStatus.RESERVED) {
                         table.setStatus(TableStatus.FREE);
                         tableRepository.save(table);
                     }
