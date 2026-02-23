@@ -150,8 +150,15 @@ public class ReservationScheduler {
                     reservation.getId(),
                     java.time.Duration.between(OffsetDateTime.now(), reservation.getStartDateTime()).toMinutes());
                 
-                // Si estaba OCCUPIED, cerrar la orden antes de pasar a RESERVED
+                // Si estaba OCCUPIED, auto-completar reservas IN_PROGRESS de esta mesa y cerrar la orden
                 if (table.getStatus() == TableStatus.OCCUPIED) {
+                    List<Reservation> activeReservations = reservationRepository.findActiveReservationsForTable(table.getId());
+                    for (Reservation active : activeReservations) {
+                        active.setStatus(ReservationStatus.COMPLETED);
+                        reservationRepository.save(active);
+                        log.info("Auto-completando reserva {} por inicio de nueva reserva en mesa {}", 
+                            active.getId(), table.getTableCode());
+                    }
                     saleService.closeSalesByTable(table.getId());
                 }
                 
