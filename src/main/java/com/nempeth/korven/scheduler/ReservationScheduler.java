@@ -167,7 +167,7 @@ public class ReservationScheduler {
      * Nota: Las reservas IN_PROGRESS pueden permanecer abiertas indefinidamente
      * hasta que el usuario las cierre manualmente.
      */
-    @Scheduled(fixedRate = 3600000) // 1 hora = 3,600,000 ms
+    @Scheduled(fixedRate = 300000) // 5 minutos = 300,000 ms
     @Transactional
     public void cleanupExpiredReservations() {
         OffsetDateTime now = OffsetDateTime.now();

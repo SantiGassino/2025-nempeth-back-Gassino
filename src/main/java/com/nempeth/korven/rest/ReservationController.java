@@ -182,6 +182,9 @@ public class ReservationController {
         
         // Ejecutar sincronización completa de estados
         reservationScheduler.syncTableStatuses();
+        
+        // Limpiar reservas expiradas (PENDING → NO_SHOW)
+        reservationScheduler.cleanupExpiredReservations();
 
         return ResponseEntity.ok(Map.of(
                 "message", "Estados de mesas sincronizados exitosamente"
