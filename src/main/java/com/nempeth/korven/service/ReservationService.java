@@ -531,8 +531,10 @@ public class ReservationService {
         validateUserBusinessAccess(userEmail, businessId);
 
         // Convertir el día a rango completo (00:00:00 hasta 23:59:59.999999999)
-        OffsetDateTime startOfDay = date.atStartOfDay(java.time.ZoneId.systemDefault()).toOffsetDateTime();
-        OffsetDateTime endOfDay = date.plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toOffsetDateTime().minusNanos(1);
+        // Usar zona horaria fija de Argentina para que funcione igual en local y en servidores UTC (DigitalOcean)
+        java.time.ZoneId argZone = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
+        OffsetDateTime startOfDay = date.atStartOfDay(argZone).toOffsetDateTime();
+        OffsetDateTime endOfDay = date.plusDays(1).atStartOfDay(argZone).toOffsetDateTime().minusNanos(1);
 
         // Obtener todas las mesas del negocio
         List<TableEntity> tables = tableRepository.findByBusinessIdOrderByTableCodeAsc(businessId);
@@ -582,7 +584,7 @@ public class ReservationService {
 
         OffsetDateTime startOfToday = OffsetDateTime.now()
                 .toLocalDate()
-                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .atStartOfDay(java.time.ZoneId.of("America/Argentina/Buenos_Aires"))
                 .toOffsetDateTime();
         List<Reservation> reservations = reservationRepository.findByBusinessIdOrderByStartDateTimeDesc(businessId);
 
@@ -617,7 +619,7 @@ public class ReservationService {
 
         OffsetDateTime startOfToday = OffsetDateTime.now()
                 .toLocalDate()
-                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .atStartOfDay(java.time.ZoneId.of("America/Argentina/Buenos_Aires"))
                 .toOffsetDateTime();
         List<Reservation> reservations = reservationRepository.findByBusinessIdOrderByStartDateTimeDesc(businessId);
 
